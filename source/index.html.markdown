@@ -1,1 +1,0 @@
-articles/2017-10-04/exploration.html.markdown
