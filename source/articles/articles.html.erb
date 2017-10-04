@@ -1,0 +1,13 @@
+---
+title: Articles
+---
+<ul class="article-index">
+	<% sub_pages('articles/20').sort { |a,b|
+		(a.nil? or a.data.nil? or a.data.order.nil?) ? -1 : (b.nil? or b.data.nil? or b.data.order.nil?) ? 1 : a.data.order <=> b.data.order }.each do |article| %>
+		<% if (article.source_file =~ /.*markdown$/) %>
+			<li> <%= link_to article.data.title, article.url %>
+			<p> <%= article.data.abstract %> </p>
+			</li>
+		<% end %>
+	<% end %>
+</ul>

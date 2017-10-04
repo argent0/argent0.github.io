@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<!-- Use the title from a page's frontmatter if it has one -->
+		<title><%= current_page.data.title || "Middleman" %></title>
+		<!--link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css"-->
+		<!--link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue.css"-->
+		<%= stylesheet_link_tag "site" %>
+		<%= javascript_include_tag "site" %>
+	</head>
+	<body>
+		<nav class="w3-bar">
+			<%= if_else_path_matches("index.html", "Home", (link_to "Home", "/index.html")) %>
+			/
+			<%= if_else_path_matches("articles/articles.html", "Articles", (link_to "Articles", "/articles/articles.html")) %>
+			/
+			<%= if_else_path_matches("about/about.html", "About", (link_to "About", "/about/about.html")) %>
+		</nav>
+		<div class="w3-content">
+			<header>
+				<h1> <%= header %> </h1>
+			</header>
+
+			<div class="w3-cell page-content">
+				<%= yield %>
+			</div>
+
+		</div>
+		<footer class="w3-container w3-theme-d5">
+			<p> <%= copyright_str %> </p>
+		</footer>
+	</body>
+</html>
