@@ -1,30 +1,20 @@
----
-title: Medical Appointments No-show
-categories: "exploratory analyis"
-order: 1
-abstract: "A patient makes an appointment with a doctor but then fails to show up. A visual exploration."
----
 
-##Context
+# Exploring No Show data
 
-From the source:
+This is an exploratory data analysis (EDA), of data descriving medical
+appointments.
 
-> A person makes a doctor appointment, receives all the instructions and
-> no-show. Who to blame? 
-
-The objectives of this exploration are:
-First, to visually present the composition of the sample data;
-And second, to show how the appointments' features relate to whether the
-patients will show up nor not.
+The objectives are: first, to visually present the structure of the
+sample data; and second, to show how the appointments' features relate
+to whether the patients will show up nor not.
 
 
 
 
 
+## Medical Appointment Data.
 
-## Available Features.
-
-The structure of the data is:
+The appointments' characteristics present in the data are:
 
 
 ~~~
@@ -45,7 +35,7 @@ The structure of the data is:
 ##  $ No.show       : Factor w/ 2 levels "No","Yes": 1 1 1 1 1 1 2 2 1 1 ...
 ~~~
 
-Next are some variables that might require a short explanation:
+Some of them might require a short explanation:
 
 * **ScheduledDay**: The day the appointment was scheduled.
 * **AppointmentDay**: The day of the appointment.
@@ -59,40 +49,71 @@ Next are some variables that might require a short explanation:
 * **No.show**: The value "Yes", means that the person missed the appointment.
   The value "No", means that the person didn't miss the appointment.
 
-## Computing Derived Features.
+### Computing Derived Features.
 
-One of the factors that might be relevant to the turn up ratio is the
+One of the factors that might be relevant to the show up ratio is the
 length of time from the day the appointment was scheduled to the appointment
-itself. Let us, thus, define:
+itself: 
 
-**Wait** as the number of days from the scheduling date to the appointment date.
+**Wait** the number of days from the scheduling date to the appointment date.
 
 
 
-## Cleaning The Data
+### Removing malformed records.
 
 Some rows with negative `Wait` or `Age` where ignored when performing the
 analysis.
 
 
 
-## Data composition
+## Exploration
 
-First a visualization of the sample's composition. Starting with the proportion
-of missed appointments, which is the target of the study.
+This section contains the actual exploration of the data after having
+established what features are present and removed the malformed records.
+
+### Some numbers
+
+The first set of questions are about quantities. 
+
+
+
+* How many appointments? 110 521 appointments.
+* How many patients? 62 298 patients.
+* Where do the appointments take place? In 81 different neighbourhoods.
+* When were the appointments scheduled? From 2015-11-10 to 2016-06-08.
+* When was the appointment? From 2016-04-29 to 2016-06-08.
+* How many days did the patients had to wait? From 0 to 179 days.
+
+### The target composition.
+
+Now a visualization of the sample's composition. Starting with the proportion
+of missed appointments, which is the target variable of the study. The data
+shows that most patients don't miss their appointments.
 
 ![plot of chunk no_show_distribution](figure/no_show_distribution-1.svg)
 
-Now, a visualization of the features and how they relate to the target.
+### Features composition.
+
+It is also interesting to visualize the relation between the features and the
+target.
+
+Two questions about the features are explored: what is the feature's
+distribution in the data?; and, what is it relation with the target?
 
 **Gender**
 
+There are almost twice as many women than men.
+Both genders are equally likely to miss their appointments.
+
 ![plot of chunk gender_distribution](figure/gender_distribution-1.svg)
 
-**Age**
+**Patient's Age**
 
-After the age of 90 years there are only a few samples, so the proportions aren't
-significative.
+The patients' age distribution. The relation with whether they show up or don't
+indicates that patients around the 15-20 age range are slightly more likely to
+miss the appointment.
+
+As expected, there are few samples for very old ages.
 
 
 ![plot of chunk hist_ages_2](figure/hist_ages_2-1.svg)
@@ -100,8 +121,10 @@ significative.
 **Waiting Time**
 
 Most appointments are same-day or for the next day. Those
-appointments also have better turn up. *Warning*, the histograms below have
-non-uniform bin sizes.
+appointments also have better turn up. Lower waiting times appear to improve the
+show up ratio.  
+
+*Warning*, the histograms below have non-uniform bin sizes.
 
 
 
@@ -109,15 +132,28 @@ non-uniform bin sizes.
 
 **Distribution of Neighbourhoods**
 
+There is considerable variance in the quantities of patients by neighbourhood,
+but not so in the show up ratio.
+
 ![plot of chunk hist_neighbourhood](figure/hist_neighbourhood-1.svg)
 
 **Distribution of other categorical variables**
 
+Most notably, it appears that patients that received an SMS (`SMS_received == 1`)
+where also less likely to show up.
+
+This is due the fact that patients with same-day appointments don't receive a
+SMS and are, simultaneously the more likely to show up (maybe they already at
+the hospital).
+
 ![plot of chunk hists_categorical_variables](figure/hists_categorical_variables-1.svg)
 
 
-The last row of plots suggests that when `SMS_received == 0` the patient is more
-likely to show up. **Thus the `0` might mean that SMS was received**.
+
+Actually, if we only consider appointments that don't occur the same day,
+patients who received a SMS a bit more likely to show up.
+
+![plot of chunk not_same_day_sms](figure/not_same_day_sms-1.svg)
 
 ## Some Characteristics
 
@@ -136,7 +172,7 @@ Yes, but most have only one.
 next?**
 
 Patients that showed up for their previous appointment are more
-likely to show up again.
+likely to show up again. This is considering appointments on different days.
 
 ![plot of chunk previous_appointment](figure/previous_appointment-1.svg)
 
@@ -154,6 +190,3 @@ Released under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4
 Attributed to Kaggle's user [JoniHoppen](https://www.kaggle.com/joniarroba)
 ([Twitter](https://twitter.com/jonihoppen),[LinkedIn](https://www.linkedin.com/in/joniarroba/)).
 Changes where made to the data as shown in the code.
-
-Source code available on
-[Github](https://github.com/argent0/medical-appointment-no-show).
