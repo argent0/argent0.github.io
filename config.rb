@@ -16,7 +16,7 @@ page '/*.json', layout: false
 page '/*.txt', layout: false
 page '/articles/*/*.html', layout: 'article'
 page '/index.html', layout: 'article'
-redirect "index.html", to: "articles/2017-10-04/exploration.html"
+redirect "index.html", to: "articles/2017-10-31/understanding.html"
 
 # With alternative layout
 # page '/path/to/file.html', layout: 'other_layout'
