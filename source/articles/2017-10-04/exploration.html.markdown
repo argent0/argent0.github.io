@@ -93,7 +93,7 @@ Now a visualization of the sample's composition. Starting with the proportion
 of missed appointments, which is the target variable of the study. The data
 shows that most patients don't miss their appointments.
 
-![plot of chunk no_show_distribution](figure/no_show_distribution-1.svg)
+![plot of chunk no_show_distribution](figures/exploration.md/no_show_distribution-1.svg)
 
 ### Features composition.
 
@@ -108,7 +108,7 @@ distribution in the data?; and, what is it relation with the target?
 There are almost twice as many women than men.
 Both genders are equally likely to miss their appointments.
 
-![plot of chunk gender_distribution](figure/gender_distribution-1.svg)
+![plot of chunk gender_distribution](figures/exploration.md/gender_distribution-1.svg)
 
 **Patient's Age**
 
@@ -119,7 +119,7 @@ miss the appointment.
 As expected, there are few samples for very old ages.
 
 
-![plot of chunk hist_ages_2](figure/hist_ages_2-1.svg)
+![plot of chunk hist_ages_2](figures/exploration.md/hist_ages_2-1.svg)
 
 **Waiting Time**
 
@@ -131,14 +131,14 @@ show up ratio.
 
 
 
-![plot of chunk hist_wait_2](figure/hist_wait_2-1.svg)
+![plot of chunk hist_wait_2](figures/exploration.md/hist_wait_2-1.svg)
 
 **Distribution of Neighbourhoods**
 
 There is considerable variance in the quantities of patients by neighbourhood,
 but not so in the show up ratio.
 
-![plot of chunk hist_neighbourhood](figure/hist_neighbourhood-1.svg)
+![plot of chunk hist_neighbourhood](figures/exploration.md/hist_neighbourhood-1.svg)
 
 **Distribution of other categorical variables**
 
@@ -149,14 +149,14 @@ This is due the fact that patients with same-day appointments don't receive a
 SMS and are, simultaneously the more likely to show up (maybe they already at
 the hospital).
 
-![plot of chunk hists_categorical_variables](figure/hists_categorical_variables-1.svg)
+![plot of chunk hists_categorical_variables](figures/exploration.md/hists_categorical_variables-1.svg)
 
 
 
 Actually, if we only consider appointments that don't occur the same day,
 patients who received a SMS a bit more likely to show up.
 
-![plot of chunk not_same_day_sms](figure/not_same_day_sms-1.svg)
+![plot of chunk not_same_day_sms](figures/exploration.md/not_same_day_sms-1.svg)
 
 ## Some Characteristics
 
@@ -177,13 +177,13 @@ next?**
 Patients that showed up for their previous appointment are more
 likely to show up again. This is considering appointments on different days.
 
-![plot of chunk previous_appointment](figure/previous_appointment-1.svg)
+![plot of chunk previous_appointment](figures/exploration.md/previous_appointment-1.svg)
 
 ## [EXTRA]Gender Composition By Age
 
 **Why is the proportion of women so large?**
 
-![plot of chunk age_by_gender](figure/age_by_gender-1.svg)
+![plot of chunk age_by_gender](figures/exploration.md/age_by_gender-1.svg)
 
 There is a sharp drop in the proportion of men after the age of 16.
 
