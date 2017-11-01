@@ -5,7 +5,7 @@
 		<meta http-equiv="x-ua-compatible" content="ie=edge">
 		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 		<!-- Use the title from a page's frontmatter if it has one -->
-		<title>Medical Appointments No-show</title>
+		<title>Medical Appointments No-Show</title>
 		<!--link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css"-->
 		<!--link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue.css"-->
 		<link href="/stylesheets/site.css" rel="stylesheet" />
@@ -26,24 +26,19 @@
 
 			<div class="w3-cell page-content">
 					<article>
-		<h1>Medical Appointments No-show</h1>
-		<h2 id="context">Context</h2>
+		<h1>Medical Appointments No-Show</h1>
+		<h1 id="exploring-no-show-data">Exploring No Show data</h1>
 
-<p>From the source:</p>
+<p>This is an exploratory data analysis (EDA), of data describing medical
+appointments.</p>
 
-<blockquote>
-  <p>A person makes a doctor appointment, receives all the instructions and
-no-show. Who to blame?</p>
-</blockquote>
+<p>The objectives are: first, to visually present the structure of the
+sample data; and second, to show how the appointments' features relate
+to whether the patients will show up nor not.</p>
 
-<p>The objectives of this exploration are:
-First, to visually present the composition of the sample data;
-And second, to show how the appointments' features relate to whether the
-patients will show up nor not.</p>
+<h2 id="medical-appointment-data">Medical Appointment Data.</h2>
 
-<h2 id="available-features">Available Features.</h2>
-
-<p>The structure of the data is:</p>
+<p>The appointments' characteristics present in the data are:</p>
 
 <div class="highlight"><pre class="highlight plaintext"><code>## 'data.frame':	110527 obs. of  14 variables:
 ##  $ PatientId     : num  2.99e+13 5.59e+14 4.26e+12 8.68e+11 8.84e+12 ...
@@ -61,7 +56,7 @@ patients will show up nor not.</p>
 ##  $ SMS_received  : int  0 0 0 0 0 0 0 0 0 0 ...
 ##  $ No.show       : Factor w/ 2 levels "No","Yes": 1 1 1 1 1 1 2 2 1 1 ...
 </code></pre></div>
-<p>Next are some variables that might require a short explanation:</p>
+<p>Some of them might require a short explanation:</p>
 
 <ul>
   <li><strong>ScheduledDay</strong>: The day the appointment was scheduled.</li>
@@ -77,57 +72,102 @@ appointment.</li>
 The value "No", means that the person didn't miss the appointment.</li>
 </ul>
 
-<h2 id="computing-derived-features">Computing Derived Features.</h2>
+<h3 id="computing-derived-features">Computing Derived Features.</h3>
 
-<p>One of the factors that might be relevant to the turn up ratio is the
+<p>One of the factors that might be relevant to the show up ratio is the
 length of time from the day the appointment was scheduled to the appointment
-itself. Let us, thus, define:</p>
+itself:</p>
 
-<p><strong>Wait</strong> as the number of days from the scheduling date to the appointment date.</p>
+<p><strong>Wait</strong> the number of days from the scheduling date to the appointment date.</p>
 
-<h2 id="cleaning-the-data">Cleaning The Data</h2>
+<h3 id="removing-malformed-records">Removing malformed records.</h3>
 
 <p>Some rows with negative <code>Wait</code> or <code>Age</code> where ignored when performing the
 analysis.</p>
 
-<h2 id="data-composition">Data composition</h2>
+<h2 id="exploration">Exploration</h2>
 
-<p>First a visualization of the sample's composition. Starting with the proportion
-of missed appointments, which is the target of the study.</p>
+<p>This section contains the actual exploration of the data after having
+established what features are present and removed the malformed records.</p>
 
-<p><img src="/articles/2017-10-04/figure/no_show_distribution-1.svg" alt="plot of chunk no_show_distribution" /></p>
+<h3 id="some-numbers">Some numbers</h3>
 
-<p>Now, a visualization of the features and how they relate to the target.</p>
+<p>The first set of questions are about quantities.</p>
+
+<ul>
+  <li>How many appointments? 110 521 appointments.</li>
+  <li>How many patients? 62 298 patients.</li>
+  <li>Where do the appointments take place? In 81 different neighbourhoods.</li>
+  <li>When were the appointments scheduled? From 2015-11-10 to 2016-06-08.</li>
+  <li>When was the appointment? From 2016-04-29 to 2016-06-08.</li>
+  <li>How many days did the patients had to wait? From 0 to 179 days.</li>
+</ul>
+
+<h3 id="the-target-composition">The target composition.</h3>
+
+<p>Now a visualization of the sample's composition. Starting with the proportion
+of missed appointments, which is the target variable of the study. The data
+shows that most patients don't miss their appointments.</p>
+
+<p><img src="/articles/2017-10-04/figures/exploration.md/no_show_distribution-1.svg" alt="plot of chunk no_show_distribution" /></p>
+
+<h3 id="features-composition">Features composition.</h3>
+
+<p>It is also interesting to visualize the relation between the features and the
+target.</p>
+
+<p>Two questions about the features are explored: what is the feature's
+distribution in the data?; and, what is it relation with the target?</p>
 
 <p><strong>Gender</strong></p>
 
-<p><img src="/articles/2017-10-04/figure/gender_distribution-1.svg" alt="plot of chunk gender_distribution" /></p>
+<p>There are almost twice as many women than men.
+Both genders are equally likely to miss their appointments.</p>
 
-<p><strong>Age</strong></p>
+<p><img src="/articles/2017-10-04/figures/exploration.md/gender_distribution-1.svg" alt="plot of chunk gender_distribution" /></p>
 
-<p>After the age of 90 years there are only a few samples, so the proportions aren't
-significative.</p>
+<p><strong>Patient's Age</strong></p>
 
-<p><img src="/articles/2017-10-04/figure/hist_ages_2-1.svg" alt="plot of chunk hist_ages_2" /></p>
+<p>The patients' age distribution. The relation with whether they show up or don't
+indicates that patients around the 15-20 age range are slightly more likely to
+miss the appointment.</p>
+
+<p>As expected, there are few samples for very old ages.</p>
+
+<p><img src="/articles/2017-10-04/figures/exploration.md/hist_ages_2-1.svg" alt="plot of chunk hist_ages_2" /></p>
 
 <p><strong>Waiting Time</strong></p>
 
 <p>Most appointments are same-day or for the next day. Those
-appointments also have better turn up. <em>Warning</em>, the histograms below have
-non-uniform bin sizes.</p>
+appointments also have better turn up. Lower waiting times appear to improve the
+show up ratio.</p>
 
-<p><img src="/articles/2017-10-04/figure/hist_wait_2-1.svg" alt="plot of chunk hist_wait_2" /></p>
+<p><em>Warning</em>, the histograms below have non-uniform bin sizes.</p>
+
+<p><img src="/articles/2017-10-04/figures/exploration.md/hist_wait_2-1.svg" alt="plot of chunk hist_wait_2" /></p>
 
 <p><strong>Distribution of Neighbourhoods</strong></p>
 
-<p><img src="/articles/2017-10-04/figure/hist_neighbourhood-1.svg" alt="plot of chunk hist_neighbourhood" /></p>
+<p>There is considerable variance in the quantities of patients by neighbourhood,
+but not so in the show up ratio.</p>
+
+<p><img src="/articles/2017-10-04/figures/exploration.md/hist_neighbourhood-1.svg" alt="plot of chunk hist_neighbourhood" /></p>
 
 <p><strong>Distribution of other categorical variables</strong></p>
 
-<p><img src="/articles/2017-10-04/figure/hists_categorical_variables-1.svg" alt="plot of chunk hists_categorical_variables" /></p>
+<p>Most notably, it appears that patients that received an SMS (<code>SMS_received == 1</code>)
+where also less likely to show up.</p>
 
-<p>The last row of plots suggests that when <code>SMS_received == 0</code> the patient is more
-likely to show up. <strong>Thus the <code>0</code> might mean that SMS was received</strong>.</p>
+<p>This is due the fact that patients with same-day appointments don't receive a
+SMS and are, simultaneously the more likely to show up (maybe they already at
+the hospital).</p>
+
+<p><img src="/articles/2017-10-04/figures/exploration.md/hists_categorical_variables-1.svg" alt="plot of chunk hists_categorical_variables" /></p>
+
+<p>Actually, if we only consider appointments that don't occur the same day,
+patients who received a SMS a bit more likely to show up.</p>
+
+<p><img src="/articles/2017-10-04/figures/exploration.md/not_same_day_sms-1.svg" alt="plot of chunk not_same_day_sms" /></p>
 
 <h2 id="some-characteristics">Some Characteristics</h2>
 
@@ -143,15 +183,15 @@ likely to show up. <strong>Thus the <code>0</code> might mean that SMS was recei
 next?</strong></p>
 
 <p>Patients that showed up for their previous appointment are more
-likely to show up again.</p>
+likely to show up again. This is considering appointments on different days.</p>
 
-<p><img src="/articles/2017-10-04/figure/previous_appointment-1.svg" alt="plot of chunk previous_appointment" /></p>
+<p><img src="/articles/2017-10-04/figures/exploration.md/previous_appointment-1.svg" alt="plot of chunk previous_appointment" /></p>
 
 <h2 id="extragender-composition-by-age">[EXTRA]Gender Composition By Age</h2>
 
 <p><strong>Why is the proportion of women so large?</strong></p>
 
-<p><img src="/articles/2017-10-04/figure/age_by_gender-1.svg" alt="plot of chunk age_by_gender" /></p>
+<p><img src="/articles/2017-10-04/figures/exploration.md/age_by_gender-1.svg" alt="plot of chunk age_by_gender" /></p>
 
 <p>There is a sharp drop in the proportion of men after the age of 16.</p>
 
@@ -161,9 +201,6 @@ likely to show up again.</p>
 Attributed to Kaggle's user <a href="https://www.kaggle.com/joniarroba">JoniHoppen</a>
 (<a href="https://twitter.com/jonihoppen">Twitter</a>,<a href="https://www.linkedin.com/in/joniarroba/">LinkedIn</a>).
 Changes where made to the data as shown in the code.</p>
-
-<p>Source code available on
-<a href="https://github.com/argent0/medical-appointment-no-show">Github</a>.</p>
 
 	</article>
 
