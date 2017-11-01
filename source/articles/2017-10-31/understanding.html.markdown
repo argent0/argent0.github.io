@@ -1,108 +1,7 @@
-
-```
-## Loading required package: functional
-```
-
-```
-## Loading required package: gtools
-```
-
-```
-## 
-## Attaching package: 'functional'
-```
-
-```
-## The following object is masked from 'package:base':
-## 
-##     %o%
-```
-
-```
-## Loading required package: dplyr
-```
-
-```
-## 
-## Attaching package: 'dplyr'
-```
-
-```
-## The following object is masked from 'package:functional':
-## 
-##     id
-```
-
-```
-## The following objects are masked from 'package:stats':
-## 
-##     filter, lag
-```
-
-```
-## The following objects are masked from 'package:base':
-## 
-##     intersect, setdiff, setequal, union
-```
-
-```
-## Loading required package: party
-```
-
-```
-## Loading required package: methods
-```
-
-```
-## Loading required package: grid
-```
-
-```
-## Loading required package: mvtnorm
-```
-
-```
-## Loading required package: modeltools
-```
-
-```
-## Loading required package: stats4
-```
-
-```
-## Loading required package: strucchange
-```
-
-```
-## Loading required package: zoo
-```
-
-```
-## 
-## Attaching package: 'zoo'
-```
-
-```
-## The following objects are masked from 'package:base':
-## 
-##     as.Date, as.Date.numeric
-```
-
-```
-## Loading required package: sandwich
-```
-
-```
-## Loading required package: Metrics
-```
-
-
-
-
-
-
-
-
+---
+title: Tree analysis for Medical No Show data
+abstract: A tree model used to discover patterns in the medical No Show data.
+---
 
 # Tree Analysis
 
@@ -249,15 +148,7 @@ day is reasonably uniform (save for one particular date).
 
 The following graph shows the resulting partition sizes:
 
-```{ r sample_split_plot, cahce=TRUE}
-(function(){
-	 nrows <- lapply(list(Train=train,Validation=validation,Test=test), nrow)
-	 midpoints <- barplot(unlist(nrows) , ylab="Number of Rows")
-	 text(midpoints,unlist(nrows)-1500,c(nrow(train),nrow(validation),nrow(test)))
-	 title(main="Number of samples in each partition")
-	})()
-
-```
+![plot of chunk sample_split_plot](figures/understanding.md/sample_split_plot-1.svg)
 
 Unfortunately, partitioning this way doesn't distribute the maximum `Wait`
 equally among the sets.
@@ -328,16 +219,6 @@ data.
 The final model, a tree with depth 5, is trained in both validation and training
 set. 
 
-
-
-```
-## [1] 0.4267598
-```
-
-```
-## [1] 0.4798831
-```
-
 Its performance is evaluated using a test set. In this case, the model has
 *log loss* of `0.4267598` in the test set.
 
@@ -376,8 +257,3 @@ overhelms the prior.
 
 The magnitudes are in the order of $10^{-4}$ and are thus omitted in the calibration
 curve.
-
-
-```
-## [1] 5.226870e-06 9.016204e-04
-```
