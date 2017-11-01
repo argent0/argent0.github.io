@@ -1,7 +1,10 @@
-
+---
+title: Medical Appointments No-Show
+abstract: A patient makes an appointment with a doctor but then fails to show up. Exploratory data analysis for medial appointments data.
+---
 # Exploring No Show data
 
-This is an exploratory data analysis (EDA), of data descriving medical
+This is an exploratory data analysis (EDA), of data describing medical
 appointments.
 
 The objectives are: first, to visually present the structure of the
