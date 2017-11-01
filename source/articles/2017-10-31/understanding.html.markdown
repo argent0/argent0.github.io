@@ -6,7 +6,7 @@ abstract: A tree model used to discover patterns in the medical No Show data.
 # Tree Analysis
 
 This article deals with further analysing the data explored on a previous
-[article](www.example.com).
+[article](/articles/2017-10-04/exploration.html).
 Briefly, the data describes patient's appointments to the doctor. Particularly
 it says whether the patient showed or not. Using the original data nomenclature:
 
@@ -225,7 +225,7 @@ Its performance is evaluated using a test set. In this case, the model has
 **Comparison with the baseline performance**
 
 The baseline model, in this case, is one that assigns to all patients a
-the same probability $p$ of missing the appointment. This $p$ is the ratio between
+the same probability $$p$$ of missing the appointment. This $$p$$ is the ratio between
 those who didn't showed up and the total amount of patients.
 
 Such a basic model has a log loss of `0.4798831` in the test set, which is
@@ -255,5 +255,7 @@ The deviation of the ratio in the test set is calculated as the posterior
 variance of beta bernoulli distribution in the limit where the amount of data
 overhelms the prior.
 
-The magnitudes are in the order of $10^{-4}$ and are thus omitted in the calibration
+The magnitudes are in the order of $$10^{-4}$$ and are thus omitted in the calibration
 curve.
+
+<script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_CHTML"> </script>
