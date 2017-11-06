@@ -51,7 +51,7 @@ Before entering into technical details, here is the resulting tree model
 * Use <kbd>Ctrl</kbd>&nbsp;<kbd>-</kbd> to downscale.
 * Use <kbd>Ctrl</kbd>&nbsp;<kbd>0</kbd> to return to the default size.
 
-![plot of chunk resulting_model_show ](figures/understanding.md/resulting_model_show -1.svg)
+![plot of chunk resulting_model_show](figures/understanding.md/resulting_model_show -1.svg)
 
 The ellipses represent the nodes. Above each node there is a number inside a
 square that I'll use to refer the nodes here. Below the variable name inside
@@ -244,16 +244,15 @@ ideal `Test ratio = estimated probability` line is included for reference.
 
 ![plot of chunk calibration_curve_test](figures/understanding.md/calibration_curve_test-1.svg)
 
-The plot shows that the model generally tends to slightly underestimate the
+The plot shows that the model generally tends to slightly overestimate the
 probability of patients missing their appointments. However, this is not enough
-to prevent the extraction of valuable insights from the model as the next
-section shows.
+to prevent the extraction of valuable insights.
 
-## Apendix
+## Appendix
 
 The deviation of the ratio in the test set is calculated as the posterior
-variance of beta bernoulli distribution in the limit where the amount of data
-overhelms the prior.
+variance of beta Bernoulli distribution in the limit where the amount of data
+overwhelms the prior.
 
 The magnitudes are in the order of $$10^{-4}$$ and are thus omitted in the calibration
 curve.
