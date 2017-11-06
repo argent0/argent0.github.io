@@ -81,7 +81,7 @@ while the <strong>target variable</strong> is whether the appointment realizes o
   <li>Use <kbd>Ctrl</kbd> <kbd>0</kbd> to return to the default size.</li>
 </ul>
 
-<p><img src="/articles/2017-10-31/figures/understanding.md/resulting_model_show-1.svg" alt="plot of chunk resulting_model_show " /></p>
+<p><img src="/articles/2017-10-31/figures/understanding.md/resulting_model_show-1.svg" alt="plot of chunk resulting_model_show" /></p>
 
 <p>The ellipses represent the nodes. Above each node there is a number inside a
 square that I'll use to refer the nodes here. Below the variable name inside
@@ -280,16 +280,15 @@ ideal <code>Test ratio = estimated probability</code> line is included for refer
 
 <p><img src="/articles/2017-10-31/figures/understanding.md/calibration_curve_test-1.svg" alt="plot of chunk calibration_curve_test" /></p>
 
-<p>The plot shows that the model generally tends to slightly underestimate the
+<p>The plot shows that the model generally tends to slightly overestimate the
 probability of patients missing their appointments. However, this is not enough
-to prevent the extraction of valuable insights from the model as the next
-section shows.</p>
+to prevent the extraction of valuable insights.</p>
 
-<h2 id="apendix">Apendix</h2>
+<h2 id="appendix">Appendix</h2>
 
 <p>The deviation of the ratio in the test set is calculated as the posterior
-variance of beta bernoulli distribution in the limit where the amount of data
-overhelms the prior.</p>
+variance of beta Bernoulli distribution in the limit where the amount of data
+overwhelms the prior.</p>
 
 <p>The magnitudes are in the order of <script type="math/tex">10^{-4}</script> and are thus omitted in the calibration
 curve.</p>
