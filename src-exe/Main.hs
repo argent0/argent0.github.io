@@ -21,8 +21,6 @@ import qualified Data.Time.Clock as Clock
 import qualified Data.Time.Calendar as Calendar
 import qualified Text.Sass as SASS
 
-import Debug.Trace (trace)
-
 currentDate :: IO (Integer, Int, Int) -- Year, Month, day
 currentDate = Calendar.toGregorian . Clock.utctDay <$> Clock.getCurrentTime
 
@@ -40,6 +38,9 @@ indexTemplate = "site/templates/index.mustache"
 
 baseTemplate :: FilePath
 baseTemplate = "site/templates/base.mustache"
+
+postTemplate :: FilePath
+postTemplate = "site/templates/post.mustache"
 
 aboutPage :: FilePath
 aboutPage = "site/about.html"
@@ -89,12 +90,25 @@ buildPost utcTime srcPath = do
 	let withPostUrl = _Object . at "url" ?~ A.String postUrl
 	let withYear = _Object . at "year" ?~ A.String (T.pack (show (utcTime ^. year)))
 
-	trace (show (srcPath, postUrl)) (return ())
-
 	-- Add additional metadata we'be been abale to compute
 	let fullPostData = (withYear . withPostUrl) postData
+
+	-- The post template
+	postT <- compileTemplate' postTemplate
+	let postHTML = substitute postT fullPostData
+
+	let withPostContent = _Object . at "content" ?~ A.String postHTML
+
+	--case (_String . at "title") ^? ( _ $ postData) of
+	let finalTitle = case postData ^? (_Object . at "title" ) of
+		Just (Just (A.String x)) -> x
+		_ -> ""
+
+	let withTitle = _Object . at "title" ?~ A.String finalTitle
+
 	template <- compileTemplate' baseTemplate
-	writeFile' (outputFolder </> T.unpack postUrl) . T.unpack $ substitute template fullPostData
+	writeFile' (outputFolder </> T.unpack postUrl) . T.unpack $ substitute template
+		(withPostContent $ withTitle emptyObject)
 	--Convert the metadata into a Post object
 	convert fullPostData
 

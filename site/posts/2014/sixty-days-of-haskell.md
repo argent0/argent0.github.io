@@ -24,7 +24,7 @@ data Move = Move
   , moveNumer :: Int } deriving Show
 ```
 
-So `Move 1 2 3` represents: "in the square at column 1 and row 2 write 3".
+So `Move 1 2 3` represents: "in the square at column 2 and row 1 write 3".
 
 An empty sudoku, one with all of its cells empty, is a sudoku where all moves
 are possible. Filling one of the cells eliminates several possible moves. For
@@ -245,22 +245,10 @@ Move :: Int -> Int -> Int -> Move
 *Main> 
 ```
 
-<script type="text/javascript"
-  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+<script type="text/javascript" async
+  src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
+</script>
 
 <script type="text/x-mathjax-config">
   MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
 </script>
-
-<!--
-
-# success historis
-Sudoku solver
-4 fours
-verifying equations
-
-# the GAP
-
-
-STArray, IArray
--->
