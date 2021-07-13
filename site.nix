@@ -1,5 +1,5 @@
-{ mkDerivation, aeson, base, lens, lens-aeson, lib, shake, slick
-, text, time
+{ mkDerivation, aeson, base, hsass, lens, lens-aeson, lib, shake
+, slick, text, time
 }:
 mkDerivation {
   pname = "site";
@@ -8,7 +8,7 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
-    aeson base lens lens-aeson shake slick text time
+    aeson base hsass lens lens-aeson shake slick text time
   ];
   description = "A personal site";
   license = lib.licenses.gpl3Only;

@@ -15,12 +15,11 @@ import Development.Shake.Forward (forwardOptions, shakeArgsForward)
 import Development.Shake.Classes (Binary)
 import Development.Shake.FilePath ((</>), dropExtension, dropDirectory1)
 import Slick
-
 import GHC.Generics (Generic)
-
 import Data.Time.Clock (UTCTime)
 import qualified Data.Time.Clock as Clock
 import qualified Data.Time.Calendar as Calendar
+import qualified Text.Sass as SASS
 
 import Debug.Trace (trace)
 
@@ -115,10 +114,24 @@ buildAbout utcTime = do
 	writeFile' (outputFolder </> T.unpack aboutUrl) . T.unpack $ substitute template fullAboutData
 	return ()
 
+buildStyles :: Action ()
+buildStyles = do
+	styleFiles <- getDirectoryFiles "./site/css" ["*.scss"]
+
+	void $ forP styleFiles $ \scssFilePath -> do
+		liftIO . putStrLn $ "[SCSS] Processing: " <> scssFilePath
+		result <- liftIO ( SASS.compileFile ("site/css" </> scssFilePath) SASS.def :: SASS.ExtendedResult )
+		case result of
+			Left sassError -> liftIO (SASS.errorText sassError) >>= liftIO . print
+			Right extendedResult -> writeFile'
+				(outputFolder </> "css" </> (dropExtension scssFilePath) <> ".css")
+				(SASS.resultString extendedResult)
+
+
 -- | Copy all static files from the listed folders to their destination
 copyStaticFiles :: Action ()
 copyStaticFiles = do
-	filePaths <- getDirectoryFiles "./site/" ["css//*", "images//*"]
+	filePaths <- getDirectoryFiles "./site/" ["images//*"]
 	void $ forP filePaths $ \filePath ->
 		copyFileChanged ("site" </> filePath) (outputFolder </> filePath)
 	
@@ -132,6 +145,7 @@ buildRules = do
 	currentTime <- liftIO Clock.getCurrentTime
 	allPosts <- buildPosts currentTime
 	buildIndex currentTime allPosts
+	buildStyles
 	copyStaticFiles
 	buildAbout currentTime
 

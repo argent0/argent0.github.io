@@ -68,6 +68,7 @@ executable site
                       , shake ^>= 0.19
                       , text ^>= 1.2.4
                       , time ^>= 1.9
+                      , hsass ^>= 0.8
 
     -- Directories containing source files.
     hs-source-dirs:   src-exe
@@ -75,4 +76,4 @@ executable site
     -- Base language which the package is written in.
     default-language: Haskell2010
 
-    ghc-options: -Wno-tabs
+    ghc-options: -Wall -Wno-tabs
