@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>{{title}}</title>
+</head>
+<body>
+	<nav class="w3-bar">
+		<a href="/">Home</a>
+		<a href="articles/articles.html">Articles</a>
+		<a href="about/about.html">About</a>
+	</nav>
+	{{>site/templates/post-list.mustache}}
+</body>
+</html>
