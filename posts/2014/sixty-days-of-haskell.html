@@ -22,7 +22,7 @@
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  {<span class="ot"> moveRow ::</span> <span class="dt">Int</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> moveCol ::</span> <span class="dt">Int</span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> moveNumer ::</span> <span class="dt">Int</span> } <span class="kw">deriving</span> <span class="dt">Show</span></span></code></pre></div>
-<p>So <code>Move 1 2 3</code> represents: "in the square at column 1 and row 2 write 3".</p>
+<p>So <code>Move 1 2 3</code> represents: "in the square at column 2 and row 1 write 3".</p>
 <p>An empty sudoku, one with all of its cells empty, is a sudoku where all moves are possible. Filling one of the cells eliminates several possible moves. For example, writing a "1" in a row eliminates the possibility of writing a "1" in other cells of the same row.</p>
 <p>So instead of representing the state of the puzzle by the moves I've already made. I'll represent it by all possible remaining moves.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">base ::</span> <span class="dt">Int</span></span>
