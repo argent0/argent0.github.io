@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>First sixty days of Haskell.</title>
+	<link rel="stylesheet" href="/css/index.css">
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+	<nav>
+		<a href="/">Home</a>
+		<a href="/index.html">Articles</a>
+		<a href="/about.html">About</a>
+	</nav>
+	<article>
+	<header>
+		First sixty days of Haskell.
+	</header>
+	<p>In a nutshell sudoku puzzle consists on a $9 \times 9$ grid of cells. Some cells contain numbers between 1 and 9 but most of them are empty. The player's mission, shall he choose to accept it, is to complete the empty cells with numbers between 1 and 9 such that: Every row contains every digit; same for columns and $3 \times 3$ box. A complete description of the Sudoku puzzle can be found <a href="www.wikipedia.org">here</a>.</p>
+<p>To represent the progress of the game I will use <em>moves</em>. A move is writing a digit into a cell. For example: write "1" in the column "2" of row "3". Here is the haskell definition:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Move</span> <span class="ot">=</span> <span class="dt">Move</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  {<span class="ot"> moveRow ::</span> <span class="dt">Int</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> moveCol ::</span> <span class="dt">Int</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  ,<span class="ot"> moveNumer ::</span> <span class="dt">Int</span> } <span class="kw">deriving</span> <span class="dt">Show</span></span></code></pre></div>
+<p>So <code>Move 1 2 3</code> represents: "in the square at column 1 and row 2 write 3".</p>
+<p>An empty sudoku, one with all of its cells empty, is a sudoku where all moves are possible. Filling one of the cells eliminates several possible moves. For example, writing a "1" in a row eliminates the possibility of writing a "1" in other cells of the same row.</p>
+<p>So instead of representing the state of the puzzle by the moves I've already made. I'll represent it by all possible remaining moves.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">base ::</span> <span class="dt">Int</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>base <span class="ot">=</span> <span class="dv">3</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ot">size ::</span> <span class="dt">Int</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>size <span class="ot">=</span> base<span class="op">*</span>base <span class="op">--*</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ot">allMoves ::</span> [<span class="dt">Move</span>]</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>allMoves <span class="ot">=</span> <span class="dt">Move</span> <span class="op">&lt;$&gt;</span> [<span class="dv">1</span><span class="op">..</span>size] <span class="op">&lt;*&gt;</span> [<span class="dv">1</span><span class="op">..</span>size] <span class="op">&lt;*&gt;</span> [<span class="dv">1</span><span class="op">..</span>size]</span></code></pre></div>
+<p>Using this representation the solved sudoku is one where there no more moves left to perform. However, having no more legals moves to perform doesn't mean that there are not empty cells left. Solving the puzzle is extracting moves from the list in such a way that when there are no more moves left all the cells are filled.</p>
+<p>Performing a move means taking a move from the current state and eliminating all those moves that have are now illegal.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">makeMove ::</span> <span class="dt">Move</span> <span class="ot">-&gt;</span> [<span class="dt">Move</span>]  <span class="ot">-&gt;</span> [<span class="dt">Move</span>]</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>makeMove m <span class="ot">=</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  enforceRowRule m <span class="op">.</span> enforceColRule m <span class="op">.</span> enforceAreaRule m <span class="op">.</span> enforceOneValuePerCell m</span></code></pre></div>
+<p>Each rule can be enforced in its own function for example this is the function for "only one value per cell:"</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ot">enforceOneValuePerCell ::</span> <span class="dt">Move</span> <span class="ot">-&gt;</span> [<span class="dt">Move</span>] <span class="ot">-&gt;</span> [<span class="dt">Move</span>]</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>enforceOneValuePerCell (<span class="dt">Move</span> cx cy _) <span class="ot">=</span> </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span> select </span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  select (<span class="dt">Move</span> x y _) <span class="ot">=</span> <span class="fu">not</span> (x<span class="op">==</span>cx <span class="op">&amp;&amp;</span> y<span class="op">==</span>cy)</span></code></pre></div>
+<p>Let's see how this works for the case of performing <code>Move 1 1 1</code>:</p>
+<pre class="terminal"><code>*Main&gt; take 2 allMoves 
+[Move {moveRow = 1, moveCol = 1, moveNumer = 1},Move {moveRow = 1, moveCol = 1, moveNumer = 2}]
+*Main&gt; take 2 $ makeMove (Move 1 1 1) allMoves 
+[Move {moveRow = 1, moveCol = 2, moveNumer = 2},Move {moveRow = 1, moveCol = 2, moveNumer = 3}]</code></pre>
+<p>There is still the issue of whether the move to be performed is a valid move in the current state of the puzzle. But it is easy to create a function that performs that check before performing the move:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">secure ::</span> (<span class="dt">Move</span> <span class="ot">-&gt;</span> [<span class="dt">Move</span>] <span class="ot">-&gt;</span> [<span class="dt">Move</span>]) <span class="ot">-&gt;</span> <span class="dt">Move</span> <span class="ot">-&gt;</span> [<span class="dt">Move</span>] <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Move</span>]</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>secure rule move state</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="op">|</span> move <span class="ot">`elem`</span> state <span class="ot">=</span> <span class="dt">Just</span> <span class="op">$</span> rule move state</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="op">|</span> <span class="fu">otherwise</span> <span class="ot">=</span> <span class="dt">Nothing</span></span></code></pre></div>
+<p>Here is the result of attempting an invalid move(write two "1" next to each other):</p>
+<pre class="terminal"><code>*Main&gt; secure makeMove (Move 1 1 1) allMoves &gt;&gt;= secure makeMove (Move 1 2 1)
+Nothing</code></pre>
+<!--These lists of moves, represent all possible future completions of the sudoku
+puzzle that don't break any rule.
+
+The full set of constrains is just a *composition* of constrains:
+
+
+So, given a set of moves $S_0$, there are *arrows* $r_m$ where $m \in S_0$:
+
+$$ r_m: S_0  \longrightarrow  \big\{ x \in S_0: x \text{ is a legal move after performing $m$ and applying the rule $r$ } \big\} $$
+
+The notation $r_m$ means make the move $m$ and apply the rule $r$.
+
+These arrows are composable:
+
+$$ r_m \circ q_n': S_0 \longrightarrow \big\{ x \in S_0: x \text{ ... } \big\} $$
+
+and composition is associative:
+
+$$ r_m \circ q_n \circ s_l =r_m \circ (q_n \circ s_l) = (r_m \circ q_n) \circ s_l $$
+
+one could also think of a special $r_0$ that makes no move, so it's an identity.
+
+This means that the sets of moves and the functions enforcing the rules form a
+*Category*.
+
+The function `makeMove m` is a combination of $r_m$'s:
+
+$$
+R_m: S_0 \longrightarrow \big\{S_0-m \big\} = r_m \circ q_m \circ s_m \circ t_m
+$$
+
+where $S_0-m$ means the set of moves after making move $m$ in a sudoku. By
+restricting the arrows of the previous category to arrows of the form $R_m$ and
+$r_0$ we obtain new a category where the objects are sets of possible moves from:
+a solved sudoku, partially solved sudoku(where no errors have been made) or a
+sudoku that can't be solved.
+
+This way, solving the sudoku means: starting from a given object  search for one
+instance of a particular kind of object in this category(the solved sudoku case
+above). This can be done in the same way as a
+[graph search](http://en.wikipedia.org/wiki/Depth-first_search) is done.
+
+The following `solve` function is *depth first search* (DFS) that stops when it finds a
+solved sudoku or when all options are exhausted. Its main difference with
+graph's DFS is that it tries the nodes in ascending order of number of options.
+In other words, starting with where only one number can be written, then two,
+etc... -->
+<p>Now onto how to obtain a solution. The basic idea behind this solution is depth first search <a href="http://en.wikipedia.org/wiki/Depth-first_search">DFS</a>. DFS is a way searching a graph where you go through the edges a deep as deep as you can and then backtrack to try other paths. In terms of solving the sudoku puzzle, this means completing the as many cells as you can before running out of possible moves.</p>
+<p>If there are no more moves and all cells have a digit then the puzzle is solved.</p>
+<p>There are two customizations to be made to vanilla DFS for this puzzle. The first is that, when choosing the cell to fill next, it will choose the cell with possible completions available. This allows the algorithm to find dead ends sooner. The second customization is that it will start backtracking the moment there is at least a cell with no possible completions.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ot">solve ::</span> [<span class="dt">Move</span>] <span class="ot">-&gt;</span> <span class="dt">Maybe</span> [<span class="dt">Move</span>]</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>solve moves <span class="ot">=</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  makeMoves moves <span class="op">&gt;&gt;=</span> solution</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">where</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  solution <span class="ot">=</span> go moves (size<span class="op">*</span>size<span class="op">-</span><span class="fu">length</span> moves) </span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  go mvs <span class="dv">0</span> [] <span class="ot">=</span> <span class="dt">Just</span> mvs </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  go _ _ [] <span class="ot">=</span> <span class="dt">Nothing</span> </span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  go mvs missing (m<span class="op">:</span>ms) <span class="ot">=</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> solvable</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>      <span class="kw">then</span> <span class="kw">case</span> next <span class="kw">of</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Just</span> n <span class="ot">-&gt;</span> <span class="dt">Just</span> n</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Nothing</span> <span class="ot">-&gt;</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        go mvs missing (sortByOptions ms)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>      <span class="kw">else</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Nothing</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    next <span class="ot">=</span> go (m<span class="op">:</span>mvs) (missing<span class="op">-</span><span class="dv">1</span>) (sortByOptions (makeMove m ms))</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    solvable <span class="ot">=</span> <span class="fu">all</span> hasOptions allPositions</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    hasOptions (a,b) <span class="ot">=</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>      <span class="fu">or</span> <span class="op">$</span> (\(<span class="dt">Move</span> c d _) <span class="ot">-&gt;</span> (a<span class="op">==</span>c) <span class="op">&amp;&amp;</span> (b<span class="op">==</span>d)) <span class="op">&lt;$&gt;</span> (m<span class="op">:</span>mvs <span class="op">++</span> ms)</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    allPositions <span class="ot">=</span> (,) <span class="op">&lt;$&gt;</span> [<span class="dv">1</span><span class="op">..</span>size] <span class="op">&lt;*&gt;</span> [<span class="dv">1</span><span class="op">..</span>size]</span></code></pre></div>
+<p>The <code>solve</code> function returns the list of moves that solve the puzzle when there is such a list. Its argument is a list of all the moves provided as clues.</p>
+<h1 id="final-remarks">Final remarks</h1>
+<p>Representing a sudoku puzzle by all the available moves (in a list <code>[Move]</code>). Led to represent the application of "sudoku laws" as functions <code>[Move] -&gt; [Move]</code> labeled by a selected move.</p>
+<p>This, in turn, showed how the possible solutions could be seen as nodes in a graph where the edges relating two nodes is "performing a move" on the source node.</p>
+<p>Once this interpretation is clear, searching for the solution using a DFS seems natural.</p>
+<p>I consider now that the essence of the problem is graph search, but I find the consequences of the choose of the representation of the nodes (<code>[Move]</code> in this case) rather interesting.</p>
+<p>In my code, I ask for a list of moves that leads to a solved sudoku. The intermediate results, the nodes, also contain the possible moves onwards. I considered representing this intermediate states as $9 \times 9$ matrices. That would have been grounded on the fact that the end result, after I find all the moves, is constructing such a representation.</p>
+<p>Transforming from the <code>[Move]</code> representation to a $9 \times 9$ matrix representation is easier than transforming from $9 \times 9$ matrix to <code>[Move]</code>. Even more so, when you only do it at once at the end.</p>
+<p>Using the $9 \times 9$ would have implied, for every step of DFS, to make the transformation to <code>[Move]</code>, choose a move and then move to the next node rebuilding a $9 \times 9$ representation by adding a number in the correct cell.</p>
+<p>Knowing how thinks work out using <code>[Move]</code>, it is clear that this representation switching is unnecessary and consist on undoing what was just done before. But if I wouldn't have known about <code>[Move]</code> then I would probably not have noticed the problem.</p>
+<h1 id="appendix-i">Appendix I</h1>
+<p>To understand the <code>allMoves</code> definition you can use <code>GHCi</code> to inspect the types:</p>
+<pre class="terminal"><code>*Main&gt; :t  (&lt;$&gt;)
+(&lt;$&gt;) :: Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+*Main&gt; :t  (&lt;*&gt;)
+(&lt;*&gt;) :: Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+*Main&gt; :t Move
+Move :: Int -&gt; Int -&gt; Int -&gt; Move
+*Main&gt; :t (Move &lt;$&gt; [1..size])
+(Move &lt;$&gt; [1..size]) :: [Int -&gt; Int -&gt; Move]
+*Main&gt; :t (Move &lt;$&gt; [1..size] &lt;*&gt; [1..size]) 
+(Move &lt;$&gt; [1..size] &lt;*&gt; [1..size]) :: [Int -&gt; Move]
+*Main&gt; :t (Move &lt;$&gt; [1..size] &lt;*&gt; [1..size] &lt;*&gt; [1..size]) 
+(Move &lt;$&gt; [1..size] &lt;*&gt; [1..size] &lt;*&gt; [1..size]) :: [Move]
+*Main&gt; </code></pre>
+<script type="text/javascript" async
+  src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
+</script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
+</script>
+</article>
+
+	<footer>Copyright  Aner Lucero</footer>
+</body>
+</html>
