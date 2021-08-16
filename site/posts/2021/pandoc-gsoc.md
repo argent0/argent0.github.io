@@ -29,7 +29,9 @@ Anything that improves the Haskell ecosystem is valid.
 
 Projects should benefit as many people as possible
 -->
-## Haskell
+## The Haskell Open Source Oraganization
+
+
 
 <!-- The pandoc proposal, a summary -->
 
@@ -64,10 +66,44 @@ It also included an optional goal:
 
 * [Prior work](https://github.com/jgm/pandoc-types/pull/83)
 
+z
 # On Figures
 
-<!-- How we address the multiple goals of the multiple involved organizations -->
+To start improving pandoc's support for figures, it's important to agree on what
+we mean by *figures*.
+
+For this project we considered a figure to be:
+
+> A part of the text document that is not part of the main flow of the text. It
+> may contain a descriptive *caption* and it may be *referenced* in the main
+> text.
+
+This concept of a figure is inspired by various document formats that deal with
+different aspects of digital documentation:
+
+* HTML
+  [`<figure>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/figure)
+  tag, "self-contained content, with an optional caption. It is referenced as a
+  single unit".
+
+* JATS
+  [`<fig>`](https://jats.nlm.nih.gov/archiving/tag-library/1.1/element/fig.html)
+  tag, "Block of graphic or textual material that is identified as a figure,
+  usually bearing a caption and a label".
+
+* LaTeX
+  [floats](https://en.wikibooks.org/wiki/LaTeX/Floats,_Figures_and_Captions)
+  , "not part of the normal stream of text, but separate entities, positioned in
+  a part of the page to themselves".
+
+It also aligns well with Pandoc's internal representation philosophy that
+prioritizes *content* over *format*.
+
+It's important to highlight that figures aren't always images or pictures.
+
+
 # Results
+<!-- How we address the multiple goals of the multiple involved organizations -->
 
 ## On Haskell community goals
 
