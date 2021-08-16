@@ -99,10 +99,9 @@ buildPost utcTime srcPath = do
 
 	let withPostContent = _Object . at "content" ?~ A.String postHTML
 
-	--case (_String . at "title") ^? ( _ $ postData) of
 	let finalTitle = case postData ^? (_Object . at "title" ) of
 		Just (Just (A.String x)) -> x
-		_ -> ""
+		_ -> error $ "Missing title at file: " ++ srcPath
 
 	let withTitle = _Object . at "title" ?~ A.String finalTitle
 
