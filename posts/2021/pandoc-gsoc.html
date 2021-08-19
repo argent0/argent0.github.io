@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>GSOC: Improve pandoc&#39;s figure handlings.</title>
+	<link rel="stylesheet" href="/css/index.css">
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+	<nav>
+		<ul>
+			<li> <a href="/">Home</a> </li>
+			<li> <a href="/index.html">Articles</a> </li>
+			<li> <a href="/about.html">About</a> </li>
+		</ul>
+	</nav>
+	<article>
+	<header>
+		GSOC: Improve pandoc&#39;s figure handlings.
+	</header>
+	<h1 id="introduction">Introduction</h1>
+<!-- Narrative style
+	- Like a guide for others to use. Withuot becoming a tutorial.
+-->
+<!-- What's GSOC. -->
+<blockquote>
+<p><a href="https://summerofcode.withgoogle.com/">Google Summer of Code</a> is a global program focused on bringing more student developers into open source software development. Students work with an open source organization on a 10 week programming project during their break from school.</p>
+</blockquote>
+<!-- Who we are. -->
+<p><a href="https://github.com/argent0">@argen0</a> <a href="https://github.com/tarleb">@tarleb</a> <a href="https://github.com/cderv">@cderv</a> <a href="https://github.com/apreshill">@apreshill</a></p>
+<!-- Summer of Haskell
+
+Anything that improves the Haskell ecosystem is valid.
+
+Projects should benefit as many people as possible
+-->
+<h2 id="the-haskell-open-source-oraganization">The Haskell Open Source Oraganization</h2>
+<!-- The pandoc proposal, a summary -->
+<!-- About pandoc -->
+<h2 id="pandoc">Pandoc</h2>
+<p>One of <code>haskell.org</code>'s proposals was put up by the people working in pandoc.</p>
+<p>Pandoc is ... * <a href="https://pandoc.org/lua-filters.html">lua filters</a></p>
+<h2 id="pandocs-proposal">Pandoc's proposal</h2>
+<p><a href="https://summer.haskell.org/ideas.html#pandoc-figures">Pandoc's proposal</a> for GSoC aimed to improve support for figures. To achieve this, it set two main goals:</p>
+<ol>
+<li><p>Extending pandoc's internal representation to capture information about figures.</p></li>
+<li><p>Implementing full figure support for, at least, one input and output format.</p></li>
+</ol>
+<p>It also included an optional goal:</p>
+<ol>
+<li>Implementing an interface usable by Lua.</li>
+</ol>
+<h2 id="my-proposal">My proposal</h2>
+<ul>
+<li><a href="https://github.com/argent0/gsoc-2021-proposal">My proposal</a>
+<ul>
+<li>My previous contributions.</li>
+</ul></li>
+<li><a href="https://github.com/jgm/pandoc-types/pull/83">Prior work</a></li>
+</ul>
+<h1 id="on-figures">On Figures</h1>
+<p>To start improving pandoc's support for figures, it's important to agree on what we mean by <em>figures</em>.</p>
+<p>For this project we considered a figure to be:</p>
+<blockquote>
+<p>A part of the text document that is not part of the main flow of the text. It may contain a descriptive <em>caption</em> and it may be <em>referenced</em> in the main text.</p>
+</blockquote>
+<p>This concept of a figure is inspired by various document formats that deal with different aspects of digital documentation:</p>
+<ul>
+<li><p>HTML <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Element/figure"><code>&lt;figure&gt;</code></a> tag, "self-contained content, with an optional caption. It is referenced as a single unit".</p></li>
+<li><p>JATS <a href="https://jats.nlm.nih.gov/archiving/tag-library/1.1/element/fig.html"><code>&lt;fig&gt;</code></a> tag, "Block of graphic or textual material that is identified as a figure, usually bearing a caption and a label".</p></li>
+<li><p>LaTeX <a href="https://en.wikibooks.org/wiki/LaTeX/Floats,_Figures_and_Captions">floats</a> , "not part of the normal stream of text, but separate entities, positioned in a part of the page to themselves".</p></li>
+</ul>
+<p>It also aligns well with Pandoc's internal representation philosophy that prioritizes <em>content</em> over <em>format</em>.</p>
+<p>It's important to highlight that figures aren't always images or pictures.</p>
+<h1 id="pandocs-orignial-handling-of-figures">Pandoc's orignial handling of figures.</h1>
+<p>Despite its internal representation lacking an <em>ad hoc</em> representation of figures, pandoc's was capable of producing "figure" elements in its output. This was achieved by treating an specific <strong>construction</strong> in a particular way.</p>
+<pre><code>[Para [Image (&quot;&quot;, [], [(&quot;alt&quot;, &quot;alt1&quot;)]) [Str &quot;capt&quot;] (&quot;src&quot;, &quot;fig:tit&quot;)]]</code></pre>
+<p>For example, here is pandoc 2.14 using the construction to generate HTML, LaTeX and XWiki figures:</p>
+<pre><code>$ pandoc -f native -t html
+[Para [Image (&quot;&quot;, [], [(&quot;alt&quot;, &quot;alt1&quot;)]) [Str &quot;capt&quot;] (&quot;src&quot;, &quot;fig:tit&quot;)]]
+&lt;figure&gt;
+&lt;img src=&quot;src&quot; title=&quot;tit&quot; alt=&quot;alt1&quot; alt=&quot;capt&quot; /&gt;&lt;figcaption aria-hidden=&quot;true&quot;&gt;capt&lt;/figcaption&gt;
+&lt;/figure&gt;
+
+$ pandoc -f native -t latex
+[Para [Image (&quot;&quot;, [], [(&quot;alt&quot;, &quot;alt1&quot;)]) [Str &quot;capt&quot;] (&quot;src&quot;, &quot;fig:tit&quot;)]]
+\begin{figure}
+\centering
+\includegraphics{src}
+\caption{capt}
+\end{figure}
+
+$ pandoc -f native -t xwiki
+[Para [Image (&quot;&quot;, [], [(&quot;alt&quot;, &quot;alt1&quot;)]) [Str &quot;capt&quot;] (&quot;src&quot;, &quot;fig:tit&quot;)]]
+[[image:src||alt=&quot;capt&quot; title=&quot;fig:tit&quot;]]</code></pre>
+<p>The logic used by these <code>Writers</code> was:</p>
+<p><em>A paragraph containing a single inline image whose title has the <code>fig:</code> prefix, is a figure</em></p>
+<p>This approach provides some benefit with its simplicity and the fact that it is already in place. But it also presents issues. In particular: it <em>leaves room for interpretation on how to use it</em> to produce the "figure" element. Consider, for example, the <code>title</code> element, the <code>tit</code> part of the <code>fig:tit</code>, in the outputs above:</p>
+<ul>
+<li>It becomes the <code>title</code> attribute of the <code>img</code> tag in HTML. This attribute is what dictates the tooltip that shows up when hovering the mouse over the image.</li>
+<li>It is absent from the LaTeX output.</li>
+<li>It becomes the <code>title</code> in the XWiki output.</li>
+</ul>
+<p>The issue being: the same piece of text filling widely different roles.</p>
+<p>I believe this issue arises when the author of a <code>Writer</code> needs to interpret the <strong>construction</strong> without explicitly defined roles for its parts. And that compounded with what the output format can actually handle.</p>
+<p>Nevertheless, the current figure support is very adequate for handling figures consisting of an image and a "caption".</p>
+<h1 id="the-simplefigure-construction">The <code>SimpleFigure</code> construction</h1>
+<p>To address some of the issues with the previous handling of figures, we introduced, along with some helper functions, the <code>SimpleFigure</code> <a href="https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/pattern_synonyms.html">pattern synonym</a></p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Constructor for a figure with a single image.</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- It can be used to construct a figure:</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- &gt;&gt;&gt; SimpleFigure nullAttr [] (T.pack &quot;&quot;, T.pack &quot;title&quot;)</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">-- Para [Image (&quot;&quot;,[],[]) [] (&quot;&quot;,&quot;fig:title&quot;)]</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">-- It can be used to pattern match:</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co">--</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">-- &gt;&gt;&gt; let img = Para [Image undefined undefined (undefined, T.pack &quot;title&quot;)]</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co">-- &gt;&gt;&gt; case img of { SimpleFigure _ _ _ -&gt; True; _ -&gt; False }</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co">-- False</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co">-- &gt;&gt;&gt; let fig = Para [Image undefined undefined (undefined, T.pack &quot;fig:title&quot;)]</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co">-- &gt;&gt;&gt; case fig of { SimpleFigure _ _ tit -&gt; snd tit; _ -&gt; T.pack &quot;&quot; }</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co">-- &quot;title&quot;</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="kw">pattern</span> <span class="dt">SimpleFigure</span><span class="ot"> ::</span> <span class="dt">Attr</span> <span class="ot">-&gt;</span> [<span class="dt">Inline</span>] <span class="ot">-&gt;</span> <span class="dt">Target</span> <span class="ot">-&gt;</span> <span class="dt">Block</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="kw">pattern</span> <span class="dt">SimpleFigure</span> attributes figureCaption tgt <span class="ot">&lt;-</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Para</span> [<span class="dt">Image</span> attributes figureCaption</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        (isFigureTarget <span class="ot">-&gt;</span> <span class="dt">Just</span> tgt)]  <span class="kw">where</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>  <span class="dt">SimpleFigure</span> attributes figureCaption tgt <span class="ot">=</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Para</span> [<span class="dt">Image</span> attributes figureCaption (second (<span class="st">&quot;fig:&quot;</span> <span class="op">&lt;&gt;</span>) tgt)]</span></code></pre></div>
+<p>This is very much like adding a new constructor to the <code>Block</code> type but with some differences.</p>
+<p>Some benefits of this approach are:</p>
+<ul>
+<li><p>It is backward compatible with the previous construction.</p></li>
+<li><p>It formalizes, without enforcing, the roles for the construction's elements.</p></li>
+<li><p>It makes it easier to find where are figures handled in the code for both <code>Readers</code> and <code>Writers</code>.</p>
+<p>Here is an example diff from the RST <code>Reader</code> in the <a href="https://github.com/jgm/pandoc/pull/7364">pandoc pull request</a>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="st">- return $ B.para (B.imageWith (imgAttr &quot;figclass&quot;) src &quot;fig:&quot;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="st">-             caption) &lt;&gt; legend</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="va">+ return $ B.simpleFigureWith</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="va">+     (imgAttr &quot;figclass&quot;) caption src &quot;&quot; &lt;&gt; legend</span></span></code></pre></div></li>
+</ul>
+<p>Of course, there are also some limitations:</p>
+<ul>
+<li><p>It doesn't <em>enforce</em> the construction on new code, as an <em>actual constructor</em> would do. For example, code with non-exhaustive patterns matches won't rise a warning if <code>SimpleFigure</code> is not handled.</p></li>
+<li><p>It lacks an explicit <code>alt-text</code> field. This can be included using attributes, but I would have liked to give it more importance.</p></li>
+</ul>
+<p>The code for the <code>SimpleFigure</code> pattern synonym was submitted with the <a href="https://github.com/jgm/pandoc-types/pull/90">pandoc-types pull request</a>. Its use on <code>Readers</code> and <code>Writers</code> was submitted with the <a href="https://github.com/jgm/pandoc/pull/7364">pandoc pull request</a>.</p>
+<p>I believe this is a modest improvement of the previous code. It provides an explicit representation for figures. It could go a little further with an explicit constructor; but keeping the behavior backward compatible prevents breaking some workflows down the line, for example someone using a <code>lua-filter</code>.</p>
+<p>Along the way, two other pull requests where submitted and merged to pandoc's <a href="https://github.com/jgm/pandoc">main repository</a>:</p>
+<ul>
+<li><p><a href="https://github.com/jgm/pandoc/pull/7417">The first</a> dealing with duplicated <code>alt-text</code> tags in the HTML output.</p></li>
+<li><p><a href="https://github.com/jgm/pandoc/pull/7425">The second</a> closely related, dealing with HTML figure accessibility.</p></li>
+</ul>
+<h1 id="the-figure-constructor">The <code>Figure</code> constructor</h1>
+<p>The <code>SimpleFigure</code> constructor only addressed one type of figures, the ones with only one image in them. To address the general case of the concept of a docment within a document detailed in the section on figures, we introduced the following <code>Block</code> constructor:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Block</span> <span class="ot">=</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>	<span class="co">-- ...</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>	<span class="co">-- | Figure, with attributes, caption and caption position, width</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>	<span class="co">-- (optional), and content (list of blocks)</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>	<span class="op">|</span> <span class="dt">Figure</span> <span class="dt">Attr</span> <span class="dt">Caption</span> [<span class="dt">Block</span>]</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>	<span class="co">-- ...</span></span></code></pre></div>
+<p>This includes other helper functions andd tests and is part of the <a href="https://github.com/jgm/pandoc/pull/7364">pandoc-types pull request</a>. It's based on the previous work by <a href="https://github.com/jgm/pandoc-types/pull/83">@despresc</a>. Modifications include: the removal of the <code>CaptionPos</code> argument that can be specified as an attribute; and the code involving tables.</p>
+<p>Tests for this constructor are also included with the pull request.</p>
+<p>This constructor allows pandoc to capture the semantics of figures from different formats into its internal representation. It also helps when writing output in formats that support figures.</p>
+<h2 id="reading-input-with-figures">Reading input with figures</h2>
+<p>Reading figures is now supported for two formats natively and one format through a Lua filter. It has to be enabled with a new <a href="https://pandoc.org/MANUAL.html#extensions">pandoc extension</a>: <code>native_figures</code>.</p>
+<pre><code>#### Extension: `native_figures` ####
+
+Use pandoc&#39;s native `Figure` element for content inside `&lt;figure&gt;` tags, in the
+case of HTML, or `figure` environments, in case of LaTeX. This, in turn, allows
+some writers to produce more accurate representations of figures. It also
+allows the use of the `Figure` element in filters, for custom figure output.
+
+This extension can be enabled/disabled for the following formats:
+
+input formats
+: `latex` `html`</code></pre>
+<p>The choice of an extension was made to introduce the new behaviour with minimal disruption of the old one.</p>
+<h3 id="reading-html-5-figures">Reading HTML 5 figures</h3>
+<p>This version of pandoc can now read figures from HTML into its internal representation:</p>
+<p><strong>After</strong></p>
+<pre><code>$ pandoc -f html+native_figures -t native
+&lt;figure class=&quot;important&quot;&gt;
+  &lt;img src=&quot;../media/rId25.jpg&quot; /&gt;
+  &lt;ul&gt; &lt;li&gt; ITEM &lt;/li&gt; &lt;/ul&gt;
+  &lt;figcaption&gt; CAP2 &lt;/figcaption&gt;
+&lt;/figure&gt;
+^D
+[Figure (&quot;&quot;,[&quot;important&quot;],[]) (Caption Nothing [Plain [Str &quot;CAP2&quot;]])\
+	[ Plain [Image (&quot;&quot;,[],[]) [] (&quot;../media/rId25.jpg&quot;,&quot;&quot;)]
+	, BulletList [[Plain [Str &quot;ITEM&quot;]]]]]</code></pre>
+<p>The difference with the old handling is that, now, elements inside a figure are not limited to only one image:</p>
+<p><strong>Before</strong></p>
+<pre><code>$ pandoc-before -f html -t native
+...
+^D
+[Para [Image (&quot;&quot;,[],[]) [Str &quot;CAP2&quot;] (&quot;../media/rId25.jpg&quot;,&quot;fig:&quot;)]]</code></pre>
+<p>Notice the missing <code>ITEM</code>. Handling of attributes and classes has also become more granular and accurte. Notice the missing <code>important</code> class above.</p>
+<h3 id="reading-latex-figures">Reading LaTeX figures</h3>
+<p>It can also read LaTeX figures:</p>
+<p><strong>After</strong></p>
+<pre><code>pandoc -f latex+native_figures -t native
+\begin{figure}
+  \begin{subfigure}[b]{0.5\textwidth}
+    \begin{subfigure}[b]{0.5\textwidth}
+      \centering
+      \includegraphics{test/media/rId25.jpg}
+      \caption{CAP1.1}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.5\textwidth}
+      \centering
+      \includegraphics{test/media/rId25.jpg}
+      \caption{CAP1.2}
+    \end{subfigure}
+    \caption{CAP1}
+    \label{fig:inner1}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.5\textwidth}
+    \includegraphics{test/media/rId25.jpg}
+    \caption{CAP2}
+    \label{fig:inner2}
+  \end{subfigure}
+  \caption{CAP}
+  \label{fig:outer}
+\end{figure}
+^D
+[Figure (&quot;fig:outer&quot;,[],[]) (Caption Nothing [Plain [Str &quot;CAP&quot;]]) 
+	[ Figure (&quot;fig:inner1&quot;,[],[]) (Caption Nothing [Plain [Str &quot;CAP1&quot;]])
+		[ Figure (&quot;&quot;,[],[]) (Caption Nothing [Plain [Str &quot;CAP1.1&quot;]])
+			[Plain [Image (&quot;&quot;,[],[]) [] (&quot;test/media/rId25.jpg&quot;,&quot;&quot;)]]
+		, Figure (&quot;&quot;,[],[]) (Caption Nothing [Plain [Str &quot;CAP1.2&quot;]])
+			[Plain [Image (&quot;&quot;,[],[]) [] (&quot;test/media/rId25.jpg&quot;,&quot;&quot;)]]]
+	, Figure (&quot;fig:inner2&quot;,[],[]) (Caption Nothing [Plain [Str &quot;CAP2&quot;]])
+		[Plain [Image (&quot;&quot;,[],[]) [] (&quot;test/media/rId25.jpg&quot;,&quot;&quot;)]]]]</code></pre>
+<p>It respects the figure and subfigure hierarchies, labels and captions accurately.</p>
+<p><strong>Before</strong></p>
+<pre><code>pandoc -f latex -t native
+...
+^D
+[Para [Image (&quot;&quot;,[],[]) [Str &quot;CAP1.1&quot;] (&quot;test/media/rId25.jpg&quot;,&quot;fig:&quot;)]
+,Para [Image (&quot;&quot;,[],[]) [Str &quot;CAP1.2&quot;] (&quot;test/media/rId25.jpg&quot;,&quot;fig:&quot;)]
+,Para [Image (&quot;fig:inner2&quot;,[],[]) [Str &quot;CAP2&quot;] (&quot;test/media/rId25.jpg&quot;,&quot;fig:&quot;)]]</code></pre>
+<p>Figures with sub-figures where flattened into a list of figures using the construction mentioned in the original figure handling section. Some captions and labels are lost.</p>
+<h3 id="markdown-figures">Markdown figures</h3>
+<p>Handling of markdown figures was implemented through a Lua filter. We opted for this approach because there is yet no agreed-upon syntax for figures in markdown (for example commonmark). Pandoc has its own markdown flavor but we have also opted to propose our syntax by implementing it as a filter. The code of the filter has been submitted in the <a href="https://github.com/pandoc/lua-filters/pull/187">lua-filters pull request</a>.</p>
+<p>I've written two filters that represent two possible markdown syntax extensions to represent figures. Both use pandoc's markdown <code>div</code> sytax with special classes.</p>
+<h4 id="the-explcit-caption-syntax">The explcit caption syntax</h4>
+<div class="sourceCode" id="cb11"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>::: { .figure }</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>content.</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>:::: {.caption }</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>caption</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>::::</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>:::</span></code></pre></div>
+<p>In this syntax a figure is a pandoc div with a <code>figure</code> class and the caption, if present, is a div with a <code>caption</code> class.</p>
+<p>Here is an example that converts this to HTML</p>
+<pre><code>$ pandoc -f markdown -t html --lua-filter=../lua-filters/markdown-figures/md-figure-explicit.lua
+...</code></pre>
+<div class="sourceCode" id="cb13"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;figure&gt;</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;p&gt;</span>content.<span class="kw">&lt;/p&gt;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;figcaption&gt;&lt;p&gt;</span>caption<span class="kw">&lt;/p&gt;&lt;/figcaption&gt;</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/figure&gt;</span></span></code></pre></div>
+<h4 id="the-implicit-caption-syntax">The implicit caption syntax</h4>
+<div class="sourceCode" id="cb14"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>::: { .figure }</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>figure content</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>figure caption.</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>:::</span></code></pre></div>
+<p>This, more concise, syntax uses the last paragraph inside the div as the caption for the figure.</p>
+<pre><code>$ pandoc -f markdown -t html --lua-filter=../lua-filters/markdown-figures/md-figure-implicit.lua
+...</code></pre>
+<div class="sourceCode" id="cb16"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;figure&gt;</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;p&gt;</span>figure content<span class="kw">&lt;/p&gt;</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;figcaption&gt;&lt;p&gt;</span>figure caption.<span class="kw">&lt;/p&gt;&lt;/figcaption&gt;</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/figure&gt;</span></span></code></pre></div>
+<h2 id="generating-output-with-figures">Generating output with figures.</h2>
+<p>Once figures can be described in pandoc's internal representation, it is the <code>Writers</code> that translate them into various output formats. Not all output formats can represent figures, and for those that can, we have decided to focus on the ones that would make the least intrusive modifications first.</p>
+<p>Next, I'll briefly enumerate the output resulting from the <code>Figure</code> constructor in various formats.</p>
+<h3 id="html">HTML</h3>
+<pre><code>% pandoc -f native -t html5
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing [Plain [Str &quot;caption&quot;]]) [Para [Str &quot;content&quot;]]]
+
+^D</code></pre>
+<div class="sourceCode" id="cb18"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;figure</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;fig-id&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;p&gt;</span>content<span class="kw">&lt;/p&gt;</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;figcaption&gt;</span>caption<span class="kw">&lt;/figcaption&gt;</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/figure&gt;</span></span></code></pre></div>
+<p>Figures are represented as <code>&lt;figure&gt;</code> tags.</p>
+<h3 id="org-mode-format">Org mode format</h3>
+<pre><code>% pandoc -f native -t org
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing []) [Para [Str &quot;content&quot;]]]
+^D</code></pre>
+<pre class="org"><code>&lt;&lt;fig-id&gt;&gt;
+content</code></pre>
+<p>Emac's org mode adds an anchor to the content of the figure.</p>
+<h3 id="textile">Textile</h3>
+<pre><code>% pandoc -f native -t textile
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing []) [Para [Image (&quot;&quot;,[],[]) [] (&quot;foo.png&quot;, &quot;&quot;)]]]
+^D</code></pre>
+<div class="sourceCode" id="cb22"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;figure</span> <span class="er">id</span><span class="ot">=</span><span class="st">&quot;fig-id&quot;</span><span class="kw">&gt;</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>!foo.png!</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/figure&gt;</span></span></code></pre></div>
+<p>The textile format constructs an HTML5 figure.</p>
+<h3 id="texinfo">Texinfo</h3>
+<pre><code>% pandoc -f native -t texinfo
+[Figure (&quot;fig-id&quot;,[],[])
+	(Caption Nothing [Para [Str &quot;Caption&quot;]])
+	[Para [Image (&quot;&quot;,[],[]) [] (&quot;foo.png&quot;, &quot;fig:&quot;)]]]
+
+^D</code></pre>
+<div class="sourceCode" id="cb24"><pre class="sourceCode texinfo"><code class="sourceCode texinfo"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">@node</span> Top</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">@top</span> Top</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="fu">@float</span> Figure</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="fu">@image</span>{foo,,,Caption,png}</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="co">@caption{Caption}</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="fu">@end</span> float</span></code></pre></div>
+<p>GNU Info's figures.</p>
+<h3 id="rst">RST</h3>
+<pre><code>% pandoc -f native -t rst
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing [Para [Str &quot;Caption&quot;]])
+	[Para [Image (&quot;&quot;,[],[]) [] (&quot;foo.png&quot;, &quot;fig:&quot;)]]]
+
+^D</code></pre>
+<div class="sourceCode" id="cb26"><pre class="sourceCode rst"><code class="sourceCode rest"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="dt">.. container:: </span>float</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>   <span class="fu">:name:</span> fig-id</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="dt">   .. figure:: </span>foo.png</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">:alt:</span> </span></code></pre></div>
+<p>Figures are represented as containers.</p>
+<h3 id="markdown">Markdown</h3>
+<pre><code>% pandoc -f native -t markdown
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing [Para [Str &quot;Caption&quot;]])
+	[Para [Image (&quot;&quot;,[],[]) [] (&quot;foo.png&quot;, &quot;fig:&quot;)]]]
+^D</code></pre>
+<div class="sourceCode" id="cb28"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>::: {#fig-id .figure}</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="al">![](foo.png)</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>:::</span></code></pre></div>
+<p>Figures are represented as a pandoc div ith the <code>.figure</code> class.</p>
+<h3 id="mediawiki">MediaWiki</h3>
+<pre><code>% pandoc -f native -t mediawiki
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing [Para [Str &quot;Caption&quot;]])
+	[Para [Image (&quot;&quot;,[],[]) [] (&quot;foo.png&quot;, &quot;fig:&quot;)]]]
+
+^D</code></pre>
+<div class="sourceCode" id="cb30"><pre class="sourceCode mediawiki"><code class="sourceCode mediawiki"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;div id=&quot;fig-id&quot; class=&quot;figure&quot;&gt;</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="dv">[[</span><span class="ot">File:foo.png</span><span class="dv">|</span>thumb|none<span class="dv">]]</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;/div&gt;</span></span></code></pre></div>
+<p>Figures are represented as a div with the <code>figure</code> class.</p>
+<h3 id="jats">Jats</h3>
+<pre><code>% pandoc -f native -t jats
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing [Para [Str &quot;Caption&quot;]]) [Para [Str &quot;Text&quot;],
+Para [Image (&quot;fig-id-2&quot;,[],[]) [] (&quot;foo.png&quot;, &quot;fig:&quot;)]]]
+
+^D</code></pre>
+<pre class="jats"><code>&lt;boxed-text id=&quot;fig-id&quot;&gt;
+  &lt;p&gt;Text&lt;/p&gt;
+  &lt;fig id=&quot;fig-id-2&quot;&gt;
+    &lt;graphic mimetype=&quot;image&quot; mime-subtype=&quot;png&quot; xlink:href=&quot;foo.png&quot; xlink:title=&quot;&quot; /&gt;
+  &lt;/fig&gt;
+&lt;/boxed-text&gt;</code></pre>
+<p>Figures are represented with the <code>boxed-text</code> tag in JATS.</p>
+<h3 id="xwiki">XWiki</h3>
+<pre><code>% pandoc -f native -t xwiki
+[Figure (&quot;fig-id&quot;,[],[]) (Caption Nothing []) [Para [Str &quot;content&quot;]]]
+
+^D</code></pre>
+<pre class="xwiki"><code>(((
+{{id name=&quot;fig-id&quot; /}}content
+)))</code></pre>
+<p>Figures are represented as groups.</p>
+<h1 id="results">Results</h1>
+<h2 id="on-haskell-community-goals">On Haskell community goals</h2>
+<!-- How we address the multiple goals of the multiple involved organizations -->
+<p>How does this improves the Haskell ecosystem:</p>
+<ul>
+<li>Pancoc = application with a large <em>indirect</em> impact on users.</li>
+<li>Pandoc = written in Haskell.</li>
+<li>Then: Improving pandoc =&gt; Improving Haskell.</li>
+</ul>
+<!--
+-- vim: spell
+-->
+</article>
+
+	<footer>Copyright  Aner Lucero</footer>
+</body>
+</html>
