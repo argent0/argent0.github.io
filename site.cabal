@@ -69,6 +69,8 @@ executable site
                       , text ^>= 1.2.4
                       , time ^>= 1.9
                       , hsass ^>= 0.8
+                      , data-default ^>= 0.7
+                      , pandoc ^>= 2.14
 
     -- Directories containing source files.
     hs-source-dirs:   src-exe

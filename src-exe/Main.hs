@@ -90,6 +90,7 @@ buildPost utcTime srcPath = do
 	let withPostUrl = _Object . at "url" ?~ A.String postUrl
 	let withYear = _Object . at "year" ?~ A.String (T.pack (show (utcTime ^. year)))
 
+
 	-- Add additional metadata we'be been abale to compute
 	let fullPostData = (withYear . withPostUrl) postData
 
