@@ -2,6 +2,20 @@
 title: "Google Summer of Code: Improve pandoc's figure handling."
 ---
 
+
+<div class=abstract>
+## Abstract
+
+This document details the work done during the *Google Summer of Code* 2021's
+edition by me for the *haskell.org* organization. It resulted in two main pull
+requests:
+
+* The [pandoc-types pull request](https://github.com/jgm/pandoc-types/pull/90).
+* The [pandoc pull request](https://github.com/jgm/pandoc/pull/7364).
+
+</div>
+
+
 ## Introduction
 
 <!-- Narrative style
@@ -307,6 +321,9 @@ Tests for this constructor are also included with the pull request.
 This constructor allows pandoc to capture the semantics of figures from
 different formats into its internal representation. It also helps when writing
 output in formats that support figures.
+
+The code using this constructor in pandoc is part of the [pandoc pull
+request](https://github.com/jgm/pandoc/pull/7364).
 
 ### Reading input with figures
 
