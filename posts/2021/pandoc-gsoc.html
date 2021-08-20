@@ -19,7 +19,15 @@
 	<header>
 		Google Summer of Code: Improve pandoc&#39;s figure handling.
 	</header>
-	<h2 id="introduction">Introduction</h2>
+	<section id="abstract" class="abstract">
+<h2>Abstract</h2>
+<p>This document details the work done during the <em>Google Summer of Code</em> 2021's edition by me for the <em>haskell.org</em> organization. It resulted in two main pull requests:</p>
+<ul>
+<li>The <a href="https://github.com/jgm/pandoc-types/pull/90">pandoc-types pull request</a>.</li>
+<li>The <a href="https://github.com/jgm/pandoc/pull/7364">pandoc pull request</a>.</li>
+</ul>
+</section>
+<h2 id="introduction">Introduction</h2>
 <!-- Narrative style
 	- Like a guide for others to use. Without becoming a tutorial.
 -->
@@ -163,6 +171,7 @@
 <p>This includes other helper functions and tests and is part of the <a href="https://github.com/jgm/pandoc/pull/7364">pandoc-types pull request</a>. It's based on the previous work by <a href="https://github.com/jgm/pandoc-types/pull/83">@despresc</a>. Modifications include: the removal of the <code>CaptionPos</code> argument that can be specified as an attribute; and the code involving tables.</p>
 <p>Tests for this constructor are also included with the pull request.</p>
 <p>This constructor allows pandoc to capture the semantics of figures from different formats into its internal representation. It also helps when writing output in formats that support figures.</p>
+<p>The code using this constructor in pandoc is part of the <a href="https://github.com/jgm/pandoc/pull/7364">pandoc pull request</a>.</p>
 <h3 id="reading-input-with-figures">Reading input with figures</h3>
 <p>Reading figures is now supported for two formats natively and one format through a Lua filter. This functionality has to be enabled with a new <a href="https://pandoc.org/MANUAL.html#extensions">pandoc extension</a>: <code>native_figures</code>.</p>
 <pre><code>#### Extension: `native_figures` ####
