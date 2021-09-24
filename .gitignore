@@ -2,3 +2,5 @@ build/
 dist-newstyle/
 .shake/
 log.md
+site/posts/2021/slice/hs-slice/.stack-work/dist/
+site/posts/2021/slice/hs-slice/.stack-work

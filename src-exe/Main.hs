@@ -74,7 +74,9 @@ buildIndex utcTime posts' = do
 buildPosts :: UTCTime -> Action [Post]
 buildPosts utcTime = do
 	pPaths <- getDirectoryFiles "." ["site/posts//*.md"]
-	forP pPaths (buildPost utcTime)
+	forP
+		(filter (not . ("site/posts//CHANGELOG.md" ?==)) pPaths)
+		(buildPost utcTime)
 
 -- | Load a post, process metadata, write it to output, then return the post
 -- object.
