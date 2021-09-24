@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Slicing Vectors</title>
+	<link rel="stylesheet" href="/css/index.css">
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+	<nav>
+		<span> Aner's site </span>
+		<ul>
+			<li> <a href="/posts/2021/pandoc-gsoc.html">Home</a> </li>
+			<li> <a href="/index.html">Articles</a> </li>
+			<li> <a href="/about.html">About</a> </li>
+		</ul>
+	</nav>
+	<article>
+	<header>
+		Slicing Vectors
+	</header>
+	<p><strong>Preamble</strong></p>
+<p>This is a <a href="https://wiki.haskell.org/Literate_programming">literate haskell document</a>. It was developed using GHC version <code>8.10.4</code> with the following extensions:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE GADTs #-}</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE KindSignatures #-}</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE DataKinds #-}</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE TypeFamilies #-}</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE TypeOperators #-}</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE PolyKinds #-}</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE ExplicitForAll #-}</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE FlexibleInstances #-}</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE UndecidableInstances #-}</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE NoStarIsType #-}</span> <span class="co">-- `*` is not type</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE RankNTypes #-}</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ot">{-# LANGUAGE ScopedTypeVariables #-}</span></span></code></pre></div>
+<p>And these are the imports:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Kind</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="dt">Data.Proxy</span></span></code></pre></div>
+<h1 id="the-problem">The Problem</h1>
+<p>It all started with a text book problem asking to implement:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">splitInHalves ::</span> [a] <span class="ot">-&gt;</span> ([a], [a])</span></code></pre></div>
+<p>One possible implementation could be:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>splitInHalves xs <span class="ot">=</span> <span class="fu">splitAt</span> (<span class="fu">length</span> xs <span class="ot">`div`</span> <span class="dv">2</span>) xs</span></code></pre></div>
+<p>Of course, this has one big problem:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ot">badSplit ::</span> ([<span class="dt">Int</span>], [<span class="dt">Int</span>])</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>badSplit <span class="ot">=</span> splitInHalves <span class="op">$</span> <span class="fu">repeat</span> <span class="dv">69</span></span></code></pre></div>
+<p><em>I.e.</em>, when the list is infinite, this code compiles without raising any warnings or errors.</p>
+<h1 id="can-i-write-a-safe-version-of-this-function">Can I write a safe version of this function?</h1>
+<p>As the problem arises when lists are infinite, it seems natural that the solution would try to forbid them.</p>
+<p>Let's first try a simple solution that fails controllably when the list is too long at runtime.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ot">safeSplitInHalves ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> [a] <span class="ot">-&gt;</span> <span class="dt">Maybe</span> ([a], [a])</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>safeSplitInHalves limit xs <span class="ot">=</span> <span class="fu">splitAt</span> <span class="op">&lt;$&gt;</span> <span class="fu">fmap</span> (<span class="ot">`div`</span> <span class="dv">2</span>) (safeLength <span class="dv">0</span> xs) <span class="op">&lt;*&gt;</span> <span class="fu">pure</span> xs</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">where</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    safeLength acc [] <span class="ot">=</span> <span class="dt">Just</span> acc</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    safeLength acc (_ <span class="op">:</span> ys) <span class="ot">=</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> acc <span class="op">&gt;</span> limit</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>            <span class="kw">then</span> <span class="dt">Nothing</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            <span class="kw">else</span> safeLength (acc <span class="op">+</span> <span class="dv">1</span>) ys</span></code></pre></div>
+<p>Now, nothing prevents someone to still write:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ot">safeBadSplit ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> ([<span class="dt">Int</span>], [<span class="dt">Int</span>])</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>safeBadSplit <span class="ot">=</span> (<span class="ot">`safeSplitInHalves`</span> <span class="fu">repeat</span> <span class="dv">69</span>)</span></code></pre></div>
+<p>It still type checks fine, but at the end is just a fancy way of writing <code>const Nothing</code> that uses more memory.</p>
+<h1 id="can-i-write-a-function-that-fails-to-type-check-for-the-badsplit">Can I write a function that fails to type check for the <code>badSplit</code>?</h1>
+<p>Perhaps I shouldn't, but I can certainly try.</p>
+<p>The cause of problems with the previous version is that I don't know if the list is finite at <strong>compile</strong> time. This is why the next solution uses <em>vectors</em>, which could be thought as list with known length at compile time. The way to implement <em>vectors</em> in Haskell is well established.</p>
+<p>I start by defining Peano naturals' type:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Peano naturals</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Nat</span> <span class="kw">where</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Z</span><span class="ot"> ::</span> <span class="dt">Nat</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">S</span><span class="ot"> ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="co">-- some constants</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="ot">one ::</span> <span class="dt">Nat</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>one <span class="ot">=</span> <span class="dt">S</span> <span class="dt">Z</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="ot">two ::</span> <span class="dt">Nat</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>two <span class="ot">=</span> <span class="dt">S</span> one</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="ot">three ::</span> <span class="dt">Nat</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>three <span class="ot">=</span> <span class="dt">S</span> two</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="ot">four ::</span> <span class="dt">Nat</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>four <span class="ot">=</span> <span class="dt">S</span> three</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="co">-- some Kind constants</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Zero</span> <span class="ot">=</span> <span class="dt">&#39;Z</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">One</span> <span class="ot">=</span> <span class="dt">&#39;S</span> <span class="dt">Zero</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Two</span> <span class="ot">=</span> <span class="dt">&#39;S</span> <span class="dt">One</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Three</span> <span class="ot">=</span> <span class="dt">&#39;S</span> <span class="dt">Two</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Four</span> <span class="ot">=</span> <span class="dt">&#39;S</span> <span class="dt">Three</span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">Five</span> <span class="ot">=</span> <span class="dt">&#39;S</span> <span class="dt">Four</span></span></code></pre></div>
+<p>Now I can define vectors of known length:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | A Vector has known length at compile time</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Vect</span><span class="ot"> ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">VNil</span><span class="ot"> ::</span> <span class="dt">Vect</span> <span class="dt">&#39;Z</span> a</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="ot">    (:#) ::</span> a <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (<span class="dt">&#39;S</span> n) a</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">infixr</span> <span class="dv">5</span> <span class="op">:#</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Example vector</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="ot">example ::</span> <span class="dt">Vect</span> <span class="dt">Four</span> <span class="dt">Char</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>example <span class="ot">=</span> <span class="ch">&#39;1&#39;</span> <span class="op">:#</span> <span class="ch">&#39;2&#39;</span> <span class="op">:#</span> <span class="ch">&#39;3&#39;</span> <span class="op">:#</span> <span class="ch">&#39;4&#39;</span> <span class="op">:#</span> <span class="dt">VNil</span></span></code></pre></div>
+<p>In this case <code>example</code> is known to be of length 4 at compile time. Trying to add more elements in its definition would result in a type error.</p>
+<p>One example of using <em>vector</em> is safely computing the head of a vector known to contain at least one element:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Safe head of a vector</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vHead ::</span> <span class="dt">Vect</span> (<span class="dt">&#39;S</span> n) a <span class="ot">-&gt;</span> a</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>vHead (x <span class="op">:#</span> _) <span class="ot">=</span> x</span></code></pre></div>
+<h1 id="writing-increasingly-complex-functions">Writing increasingly complex functions</h1>
+<p>Still with my goal in mind, I decided to try to write some more functions over <code>Vect</code>.</p>
+<h2 id="take-one-drop-one">Take One, Drop One</h2>
+<p>One function, over lists, that plays nicer with Haskell laziness could be:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Return half of the elements taking one, dropping the next, etc...</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ot">skipHalfTheElements ::</span> [a] <span class="ot">-&gt;</span> [a]</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>skipHalfTheElements [] <span class="ot">=</span> []</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>skipHalfTheElements [_] <span class="ot">=</span> []</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>skipHalfTheElements (x <span class="op">:</span> _ <span class="op">:</span> xs) <span class="ot">=</span> x <span class="op">:</span> skipHalfTheElements xs</span></code></pre></div>
+<p>I can write one that works on <code>Vect</code> like:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Compute the half of a natural number</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">NatHalf</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Nat</span> <span class="kw">where</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NatHalf</span> <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;Z</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NatHalf</span> (<span class="dt">&#39;S</span> <span class="dt">&#39;Z</span>) <span class="ot">=</span> <span class="dt">&#39;Z</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NatHalf</span> (<span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> n)) <span class="ot">=</span> <span class="dt">&#39;S</span> (<span class="dt">NatHalf</span> n)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co">-- Grab every other value</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="ot">takeOneDropOne ::</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (<span class="dt">NatHalf</span> n) a</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>takeOneDropOne <span class="dt">VNil</span> <span class="ot">=</span> <span class="dt">VNil</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>takeOneDropOne (_ <span class="op">:#</span> <span class="dt">VNil</span>) <span class="ot">=</span> <span class="dt">VNil</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>takeOneDropOne (x <span class="op">:#</span> (_ <span class="op">:#</span> xs)) <span class="ot">=</span> x <span class="op">:#</span> takeOneDropOne xs</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co">-- I know the result has length Two</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="ot">skippedExample ::</span> <span class="dt">Vect</span> <span class="dt">Two</span> <span class="dt">Char</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>skippedExample <span class="ot">=</span> takeOneDropOne example</span></code></pre></div>
+<p>As its signature suggests, <code>takeOneDropOne</code> takes a <code>Vect</code> with <code>n</code> element and returns one with half the input length. For this function to work, I need to provide a way to compute the half, and that is what <code>NatHalf</code> does.</p>
+<p><code>NatHalf</code> is a type level function that takes types of kind <code>Nat</code> and returns their half. I could have made a mistake writing it, but if it's correct then, at compile time, I know that the output of <code>takeOneDropOne</code> has half the length of the input.</p>
+<h2 id="droping-elements-from-a-vector">Droping elements from a vector</h2>
+<p>Next I implemented <code>vDrop</code> that works like <code>drop :: Int -&gt; [a] -&gt; [a]</code> but for <code>Vect</code>. To know the length of the result at compile time, the type checker also needs to know the amount that will be dropped and that the original vector has enough elements.</p>
+<p>For the later, I define, the usual type level addition of naturals:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> (<span class="op">:+:</span>) (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Nat</span> <span class="kw">where</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    (<span class="op">:+:</span>) <span class="dt">&#39;Z</span> m <span class="ot">=</span> m</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    (<span class="op">:+:</span>) (<span class="dt">&#39;S</span> n) m <span class="ot">=</span> <span class="dt">&#39;S</span> (n <span class="op">:+:</span> m)</span></code></pre></div>
+<p>The amount to drop can be passed using a singleton type. A singleton type is a type that only has one constructor. That means that given the type, there is only one way to construct the value.</p>
+<p><code>SNat n</code> is a type indexed by a natural that is also a singleton. This is also the familiar way of implementing it.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Singleton type indexed by naturals.</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">SNat</span><span class="ot"> ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SZ</span><span class="ot"> ::</span> <span class="dt">SNat</span> <span class="dt">&#39;Z</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SS</span><span class="ot"> ::</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">SNat</span> (<span class="dt">&#39;S</span> n)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Some synonyms</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">SZero</span> <span class="ot">=</span> <span class="dt">SNat</span> <span class="dt">&#39;Z</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">SOne</span> <span class="ot">=</span> <span class="dt">SNat</span> ( <span class="dt">&#39;S</span> <span class="dt">&#39;Z</span> )</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">STwo</span> <span class="ot">=</span> <span class="dt">SNat</span> ( <span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> <span class="dt">&#39;Z</span> ))</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">SThree</span> <span class="ot">=</span> <span class="dt">SNat</span> ( <span class="dt">&#39;S</span> ( <span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> <span class="dt">&#39;Z</span> )))</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">SFour</span> <span class="ot">=</span> <span class="dt">SNat</span> ( <span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> ( <span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> <span class="dt">&#39;Z</span> ))))</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="dt">SFive</span> <span class="ot">=</span> <span class="dt">SNat</span> ( <span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> ( <span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> <span class="dt">&#39;Z</span> )))))</span></code></pre></div>
+<p>Because knowing that a value has some type <code>SNat n</code> means knowing how it's built. The translation from type to value can be "automated" with a type class.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> <span class="dt">Singleton</span> a <span class="kw">where</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ot">    reify ::</span> <span class="dt">Proxy</span> a <span class="ot">-&gt;</span> a</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Singleton</span> (<span class="dt">SNat</span> <span class="dt">&#39;Z</span>) <span class="kw">where</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    reify <span class="dt">Proxy</span> <span class="ot">=</span> <span class="dt">SZ</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Singleton</span> (<span class="dt">SNat</span> n) <span class="ot">=&gt;</span> <span class="dt">Singleton</span> (<span class="dt">SNat</span> (<span class="dt">&#39;S</span> n)) <span class="kw">where</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    reify <span class="dt">Proxy</span> <span class="ot">=</span> <span class="dt">SS</span> (reify <span class="dt">Proxy</span>)</span></code></pre></div>
+<p>The <code>data Proxy a = Proxy</code> is a technique to bring a type to the context without bringing any particular value. With this instance we can define some constants easily:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ot">szero ::</span> <span class="dt">SZero</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>szero <span class="ot">=</span> reify <span class="dt">Proxy</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="ot">sone ::</span> <span class="dt">SOne</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>sone <span class="ot">=</span> reify <span class="dt">Proxy</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="ot">stwo ::</span> <span class="dt">STwo</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>stwo <span class="ot">=</span> reify <span class="dt">Proxy</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="ot">sthree ::</span> <span class="dt">SThree</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>sthree <span class="ot">=</span> reify <span class="dt">Proxy</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="ot">sfour ::</span> <span class="dt">SFour</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>sfour <span class="ot">=</span> reify <span class="dt">Proxy</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a><span class="ot">sfive ::</span> <span class="dt">SFive</span></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>sfive <span class="ot">=</span> reify <span class="dt">Proxy</span></span></code></pre></div>
+<p>Now I've all the pieces to build the <code>vDrop</code> function that follows:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Type safe drop function</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vDrop ::</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">Vect</span> (n <span class="op">:+:</span> m) a <span class="ot">-&gt;</span> <span class="dt">Vect</span> m a</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>vDrop <span class="dt">SZ</span> xs <span class="ot">=</span> xs</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>vDrop (<span class="dt">SS</span> n) (_ <span class="op">:#</span> xs) <span class="ot">=</span> vDrop n xs</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Example using vDrop</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="ot">droppedExample ::</span> <span class="dt">Vect</span> <span class="dt">One</span> <span class="dt">Char</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>droppedExample <span class="ot">=</span> vDrop sthree example</span></code></pre></div>
+<h2 id="taking-elements-from-a-vector">Taking elements from a vector</h2>
+<p>Writing <code>vTake</code> turned out to be harder than <code>vDrop</code> and required an <em>ad hoc</em> construction to turn it type safe:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | LTE n m, proof that n &lt;= m</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">LTE</span><span class="ot"> ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">LTEZero</span><span class="ot"> ::</span> <span class="dt">LTE</span> <span class="dt">&#39;Z</span> m</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">LTESucc</span><span class="ot"> ::</span> <span class="dt">LTE</span> n m <span class="ot">-&gt;</span> <span class="dt">LTE</span> (<span class="dt">&#39;S</span> n) (<span class="dt">&#39;S</span> m)</span></code></pre></div>
+<p>The <code>LTE n m</code> type, indexed by two naturals, can only be constructed if <code>n &lt;= m</code>. This is known way to represent it. It could be read as:</p>
+<ul>
+<li>Use <code>LTEZero</code> to prove that <code>0 &lt;= m</code></li>
+<li>To construct a proof that <code>S n_ &lt;= S m</code>, provide a proof that <code>n &lt;= m</code>.</li>
+</ul>
+<p>With this representation there is only one way to proof that <code>n &lt;= m</code>. This means that <code>LTE n m</code> is a singleton hence:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Singleton</span> (<span class="dt">LTE</span> <span class="dt">&#39;Z</span> m) <span class="kw">where</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    reify _ <span class="ot">=</span> <span class="dt">LTEZero</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Singleton</span> (<span class="dt">LTE</span> n m) <span class="ot">=&gt;</span> <span class="dt">Singleton</span> (<span class="dt">LTE</span> (<span class="dt">&#39;S</span> n) (<span class="dt">&#39;S</span> m)) <span class="kw">where</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    reify _ <span class="ot">=</span> <span class="dt">LTESucc</span> (reify <span class="dt">Proxy</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Take n elements from a vector of length t with n &lt;= t.</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vTake ::</span> <span class="dt">LTE</span> n t <span class="ot">-&gt;</span> <span class="dt">Vect</span> t a <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>vTake <span class="dt">LTEZero</span> _ <span class="ot">=</span> <span class="dt">VNil</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>vTake (<span class="dt">LTESucc</span> p) (x <span class="op">:#</span> xs) <span class="ot">=</span> x <span class="op">:#</span> vTake p xs</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="co">-- Example using `vTake`</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="ot">takedExample ::</span> <span class="dt">Vect</span> <span class="dt">Three</span> <span class="dt">Char</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>takedExample <span class="ot">=</span> vTake (reify <span class="dt">Proxy</span>) example</span></code></pre></div>
+<p>I could use <code>reify Proxy</code> in this case instead of <code>sthree</code>, which is nice. Also, the amount to take, can be deduced from the proof that we have enough elements to take, so I don't need to pass a <code>SNat n</code>.</p>
+<h1 id="can-i-slice-vectors-type-safely">Can I slice vectors type-safely?</h1>
+<p>Yes, and I figured this one out before <code>vTake</code>.</p>
+<p>Before approaching the halving of a <code>Vect</code>, I took a look at the, perhaps, more general problem of slicing vectors. Slicing is a term python or R programmers use to describe the action of extracting a sub-collection from a collection (usually lists or arrays).</p>
+<p>My solution also uses an <em>ad hoc</em> type to represent, at the type level, the values that I want to <em>slice out</em>.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Indices for slices</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Slice</span> (<span class="ot">k ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Vect</span> k <span class="dt">Bool</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- | Extract nothing from an empty Vect</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SliceNil</span><span class="ot"> ::</span> <span class="dt">Slice</span> <span class="dt">&#39;Z</span> <span class="dt">&#39;Z</span> <span class="dt">&#39;VNil</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- | Include the next value</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SliceInc</span><span class="ot"> ::</span> <span class="dt">Slice</span> t i is <span class="ot">-&gt;</span> <span class="dt">Slice</span> (<span class="dt">&#39;S</span> t) (<span class="dt">&#39;S</span> i) (<span class="dt">&#39;True</span> &#39;<span class="op">:#</span> is)</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- | Remove the next value</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SliceRem</span><span class="ot"> ::</span> <span class="dt">Slice</span> t i is <span class="ot">-&gt;</span> <span class="dt">Slice</span> (<span class="dt">&#39;S</span> t) i      (<span class="dt">&#39;False</span> &#39;<span class="op">:#</span> is)</span></code></pre></div>
+<p>A type of <code>Slice Two One '['False, 'True]</code> means extract a total of <code>One</code> value from a <code>Vect</code> of length <code>Two</code> where the first value is <em>removed</em> and the second <em>included</em>.</p>
+<p>I don't think I <em>need</em> <code>Vect k Bool</code> to index this type, and that <code>[Bool]</code> is enough if I'm careful writing the constructors. But using a <code>Vect k Bool</code> makes breaking the invariant a type error.</p>
+<p>This type also happens to be a singleton.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Singleton</span> (<span class="dt">Slice</span> <span class="dt">&#39;Z</span> <span class="dt">&#39;Z</span> <span class="dt">&#39;VNil</span>) <span class="kw">where</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    reify <span class="dt">Proxy</span> <span class="ot">=</span> <span class="dt">SliceNil</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Singleton</span> (<span class="dt">Slice</span> t i is) <span class="ot">=&gt;</span> <span class="dt">Singleton</span> (<span class="dt">Slice</span> ( <span class="dt">&#39;S</span> t ) i ( <span class="dt">&#39;False</span> &#39;<span class="op">:#</span> is) ) <span class="kw">where</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    reify <span class="dt">Proxy</span> <span class="ot">=</span> <span class="dt">SliceRem</span> (reify <span class="dt">Proxy</span>)</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Singleton</span> (<span class="dt">Slice</span> t i is) <span class="ot">=&gt;</span> <span class="dt">Singleton</span> (<span class="dt">Slice</span> ( <span class="dt">&#39;S</span> t ) (<span class="dt">&#39;S</span> i) ( <span class="dt">&#39;True</span> &#39;<span class="op">:#</span> is) ) <span class="kw">where</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    reify <span class="dt">Proxy</span> <span class="ot">=</span> <span class="dt">SliceInc</span> (reify <span class="dt">Proxy</span>)</span></code></pre></div>
+<p>With these definitions <code>vSlice</code> is easy to write. It takes a <code>Slice t i is</code> and a <code>Vect t a</code> as inputs and returns a <code>Vect i a</code> where the i-th element of <code>Vect t a</code> is present in <code>Vect i a</code> if the i-th element of <code>is</code> is <code>True</code>.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Slices the i indices from a vector</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vSlice ::</span> <span class="dt">Slice</span> t i is <span class="ot">-&gt;</span> <span class="dt">Vect</span> t a <span class="ot">-&gt;</span> <span class="dt">Vect</span> i a</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>vSlice <span class="dt">SliceNil</span> _ <span class="ot">=</span> <span class="dt">VNil</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>vSlice (<span class="dt">SliceInc</span> is) (x <span class="op">:#</span> xs) <span class="ot">=</span> x <span class="op">:#</span> vSlice is xs</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>vSlice (<span class="dt">SliceRem</span> is) (_ <span class="op">:#</span> xs) <span class="ot">=</span> vSlice is xs</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Example using slice</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="ot">slicedExample1 ::</span> <span class="dt">Vect</span> <span class="dt">Two</span> <span class="dt">Char</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>slicedExample1 <span class="ot">=</span> vSlice (<span class="dt">SliceInc</span> (<span class="dt">SliceRem</span> (<span class="dt">SliceRem</span> (<span class="dt">SliceInc</span> <span class="dt">SliceNil</span>)))) example</span></code></pre></div>
+<p>Nice. The <code>Slice</code> value has to be carefully crafted, but the type checker ensures that exactly two values are selected.</p>
+<h2 id="special-slices">Special Slices</h2>
+<p>But perhaps there are special slices that don't require us to construct the full value by hand.</p>
+<p><strong>The null slice</strong></p>
+<p>One of them is the slice that selects nothing. Because it's always possible to select nothing, <code>Vect 'Z a</code> is a terminal object.</p>
+<p>The type of a slice that selects nothing can be computed from the length of the input vector. The following type level function computes a <code>Vect n Bool</code> where every element is <code>False</code>.</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">DropAll</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Vect</span> n <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">DropAll</span> <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;VNil</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">DropAll</span> (<span class="dt">&#39;S</span> n) <span class="ot">=</span> <span class="dt">&#39;False</span> &#39;<span class="op">:#</span> <span class="dt">DropAll</span> n</span></code></pre></div>
+<p>With this function we can compute, at compile time, the type of a slice that selects nothing, like the one used in the following function:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | The null slice</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vEliminate ::</span> <span class="dt">Slice</span> n <span class="dt">&#39;Z</span> (<span class="dt">DropAll</span> n) <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> <span class="dt">&#39;Z</span> a</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>vEliminate <span class="ot">=</span> vSlice</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Select nothing example</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="ot">elimintadExample ::</span> <span class="dt">Vect</span> <span class="dt">&#39;Z</span> <span class="dt">Char</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>elimintadExample <span class="ot">=</span> vEliminate (reify <span class="dt">Proxy</span>) example</span></code></pre></div>
+<p><strong>The identity slice</strong></p>
+<p>Conversely, another slice that we could surely take is the slice that selects everything.</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">TakeAll</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Vect</span> n <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">TakeAll</span> <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;VNil</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">TakeAll</span> (<span class="dt">&#39;S</span> n) <span class="ot">=</span> <span class="dt">&#39;True</span> &#39;<span class="op">:#</span> <span class="dt">TakeAll</span> n</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co">-- | The identity slice</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="ot">vDuplicate ::</span> <span class="dt">Slice</span> n n (<span class="dt">TakeAll</span> n) <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">Vect</span> n a</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>vDuplicate <span class="ot">=</span> vSlice</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="ot">duplicatedExample ::</span> <span class="dt">Vect</span> <span class="dt">Four</span> <span class="dt">Char</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>duplicatedExample <span class="ot">=</span> vDuplicate (reify <span class="dt">Proxy</span>) example</span></code></pre></div>
+<p>This is very similar to the previous case.</p>
+<h2 id="more-special-slices">More Special Slices</h2>
+<p>In the previous two functions, we could say the we already know the result before applying the function. The output of the next slices depends less trivially on on their input.</p>
+<p><strong>First Half Slice</strong></p>
+<p>One thing, that I can do with any vector is look at its first half. Can I write a function that does this and doesn't require to explicitly construct the <code>Slice</code>?</p>
+<p>Yes, and it turns out to be more involved that the previous functions. Concretely, it involved writing five new type level functions; the last one actually computing the type of the slice.</p>
+<p>That is, given for example <code>2 :: Nat</code> it returns <code>Slice 2 1 [True, False]</code>, which is to select the first half.</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Less than equal over nats</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">LTEB</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">LTEB</span> <span class="dt">&#39;Z</span> m <span class="ot">=</span> <span class="dt">&#39;True</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">LTEB</span> ( <span class="dt">&#39;S</span> n ) <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;False</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">LTEB</span> ( <span class="dt">&#39;S</span> n ) ( <span class="dt">&#39;S</span> m ) <span class="ot">=</span> <span class="dt">LTEB</span> n m</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Add an element to the end of a vector</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">Snoc</span> (<span class="ot">xs ::</span> <span class="dt">Vect</span> k a) (<span class="ot">y ::</span> a)<span class="ot"> ::</span> <span class="dt">Vect</span> (<span class="dt">&#39;S</span> k) a <span class="kw">where</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Snoc</span> <span class="dt">&#39;VNil</span> y <span class="ot">=</span> y &#39;<span class="op">:#</span> <span class="dt">&#39;VNil</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Snoc</span> (x &#39;<span class="op">:#</span> xs) y <span class="ot">=</span> x &#39;<span class="op">:#</span> <span class="dt">Snoc</span> xs y</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Reverse a vector</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">Reverse</span> (<span class="ot">xs ::</span> <span class="dt">Vect</span> nx a)<span class="ot"> ::</span> <span class="dt">Vect</span> nx a <span class="kw">where</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Reverse</span> <span class="dt">&#39;VNil</span> <span class="ot">=</span> <span class="dt">&#39;VNil</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Reverse</span> (x &#39;<span class="op">:#</span> xs) <span class="ot">=</span> <span class="dt">Snoc</span> (<span class="dt">Reverse</span> xs) x</span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Auxiliar Recursive function that selects the first half of a vector of</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a><span class="co">-- length m</span></span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">FirstHalfIdxAux</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Vect</span> m <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">FirstHalfIdxAux</span> n <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;VNil</span></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">FirstHalfIdxAux</span> n (<span class="dt">&#39;S</span> m) <span class="ot">=</span> <span class="dt">LTEB</span> (<span class="dt">&#39;S</span> m) (<span class="dt">NatHalf</span> n) &#39;<span class="op">:#</span> <span class="dt">FirstHalfIdxAux</span> n m</span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">FirstHalfIdx</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Vect</span> n <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">FirstHalfIdx</span> n <span class="ot">=</span> <span class="dt">Reverse</span> (<span class="dt">FirstHalfIdxAux</span> n n)</span></code></pre></div>
+<p>It important to note that the correctness of the following code dependes on the correctness of the previous functions. In other words, if there is an error above then the code below could be wrong despite type checking.</p>
+<p>Anyway, with these functions I can finally select the first half:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | The first half of a vector</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vFirstHalf ::</span> <span class="dt">Slice</span> t (<span class="dt">NatHalf</span> t) (<span class="dt">FirstHalfIdx</span> t) <span class="ot">-&gt;</span> <span class="dt">Vect</span> t a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (<span class="dt">NatHalf</span> t) a</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>vFirstHalf <span class="ot">=</span> vSlice</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="ot">firstHalfExample ::</span> <span class="dt">Vect</span> <span class="dt">Two</span> <span class="dt">Char</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>firstHalfExample <span class="ot">=</span> vFirstHalf (reify <span class="dt">Proxy</span>) example</span></code></pre></div>
+<p><strong>Second Half Slice</strong></p>
+<p>After the first half, it comes the second half. And the <em>law of halves</em> is that the two have to recombine into the original object when combined in the proper order.</p>
+<p>This translates into five new type level functions, that accomplish the goal of computing the type of the slice that selects the second half.</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">NatHalfC</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Nat</span> <span class="kw">where</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NatHalfC</span> <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;Z</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NatHalfC</span> (<span class="dt">&#39;S</span> <span class="dt">&#39;Z</span>) <span class="ot">=</span> <span class="dt">&#39;S</span> <span class="dt">&#39;Z</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NatHalfC</span> (<span class="dt">&#39;S</span> (<span class="dt">&#39;S</span> n)) <span class="ot">=</span> <span class="dt">&#39;S</span> (<span class="dt">NatHalfC</span> n)</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Type level not</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">NOTB</span> (<span class="ot">n ::</span> <span class="dt">Bool</span>)<span class="ot"> ::</span> <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NOTB</span> <span class="dt">&#39;True</span> <span class="ot">=</span> <span class="dt">&#39;False</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">NOTB</span> <span class="dt">&#39;False</span> <span class="ot">=</span> <span class="dt">&#39;True</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Greater than over Nat</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">GTB</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">GTB</span> n m <span class="ot">=</span> <span class="dt">NOTB</span> (<span class="dt">LTEB</span> n m)</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">SecondHalfIdxAux</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Vect</span> m <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SecondHalfIdxAux</span> n <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;VNil</span></span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SecondHalfIdxAux</span> n (<span class="dt">&#39;S</span> m) <span class="ot">=</span> <span class="dt">GTB</span> (<span class="dt">&#39;S</span> m) (<span class="dt">NatHalf</span> n) &#39;<span class="op">:#</span> <span class="dt">SecondHalfIdxAux</span> n m</span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">SecondHalfIdx</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Vect</span> n <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">SecondHalfIdx</span> n <span class="ot">=</span> <span class="dt">Reverse</span> (<span class="dt">SecondHalfIdxAux</span> n n)</span></code></pre></div>
+<p>With all this help, I can write the function that extracts the second half:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | The second half of a vector</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vSecondHalf ::</span> <span class="dt">Slice</span> t (<span class="dt">NatHalfC</span> t) (<span class="dt">SecondHalfIdx</span> t) <span class="ot">-&gt;</span> <span class="dt">Vect</span> t a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (<span class="dt">NatHalfC</span> t) a</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>vSecondHalf <span class="ot">=</span> vSlice</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="ot">secondHalfExample ::</span> <span class="dt">Vect</span> <span class="dt">Two</span> <span class="dt">Char</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>secondHalfExample <span class="ot">=</span> vSecondHalf (reify <span class="dt">Proxy</span>) example</span></code></pre></div>
+<h1 id="what-about-the-original-problem">What about the original problem?</h1>
+<p>With all these tools it is now easy to write a safe solution to the original problem:</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Split a vector in two halves</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ot">vHalve ::</span> <span class="dt">Slice</span> t (<span class="dt">NatHalf</span> t) (<span class="dt">FirstHalfIdx</span> t)</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Slice</span> t (<span class="dt">NatHalfC</span> t) (<span class="dt">SecondHalfIdx</span> t)</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    <span class="ot">-&gt;</span> <span class="dt">Vect</span> t a <span class="ot">-&gt;</span> (<span class="dt">Vect</span> (<span class="dt">NatHalf</span> t) a, <span class="dt">Vect</span> (<span class="dt">NatHalfC</span> t) a)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>vHalve fh sh xs <span class="ot">=</span> (vFirstHalf fh xs, vSecondHalf sh xs)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="ot">halvedExample ::</span> (<span class="dt">Vect</span> <span class="dt">Two</span> <span class="dt">Char</span>, <span class="dt">Vect</span> <span class="dt">Two</span> <span class="dt">Char</span>)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>halvedExample <span class="ot">=</span> vHalve (reify <span class="dt">Proxy</span>) (reify <span class="dt">Proxy</span>) example</span></code></pre></div>
+<p>Finally a type safe solution. I still need those <code>(reify Proxy)</code> arguments.</p>
+<h1 id="how-does-this-work-in-the-real-world">How does this work in the "real" world?</h1>
+<p>So far all examples have been based on the <code>example</code> vector which is known at compile time because it is defined in the code. In that regard, the original <code>splitInHalves</code> function can also split any list you can type.</p>
+<p>The type safe functions, to this point, have only helped the type checker to find errors on the values I've provided at compile time.</p>
+<p>To interact with "the real world", I would need to read vectors from it. The length of these vectors are unknown at compile time. How does it work? How do these functions help?</p>
+<h2 id="a-case-study">A case study</h2>
+<p>To explore the answers to these questions, I'll consider the following program:</p>
+<ol>
+<li>Ask for a <code>n :: Nat</code></li>
+<li>Ask for <code>n</code> Integers and store them in a <code>v :: Vect n Integer</code></li>
+<li>Ask for a second <code>m :: Nat</code></li>
+<li>Ensure that <code>m &lt;= n</code></li>
+<li>Take <code>m</code> elements from <code>v</code> to form new vector.</li>
+</ol>
+<p>I started with the simple case of converting an <code>Integer</code> to a <code>Nat</code>. Integers cacan be easly read from <code>stdin</code>:</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ot">intToNat ::</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> <span class="dt">Nat</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>intToNat n</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> n <span class="op">&lt;</span> <span class="dv">0</span> <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> n <span class="op">==</span> <span class="dv">0</span> <span class="ot">=</span> <span class="dt">Just</span> <span class="dt">Z</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="fu">otherwise</span> <span class="ot">=</span> <span class="dt">S</span> <span class="op">&lt;$&gt;</span> intToNat (n <span class="op">-</span> <span class="dv">1</span>)</span></code></pre></div>
+<p>The conversion might fail, but the failure can be catched by pattern matching the <code>Nothing</code>. If it doesn't, then I have obtained a <code>Nat</code> from the user.</p>
+<p>The function <code>vTake</code>, necessary for the last step, requires a <code>SNat n</code>, and I have a <code>Nat</code>. To promote that <code>Nat</code> into a <code>SNat n</code> I used the next function that takes as its first argument a function that needs to handle all possible <code>SNat n</code>.</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Construct un SNat n from the nat n</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ot">promoteNat ::</span> <span class="kw">forall</span> k <span class="op">.</span> (<span class="kw">forall</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) <span class="op">.</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> k) <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> k</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>promoteNat f <span class="dt">Z</span> <span class="ot">=</span> f <span class="dt">SZ</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>promoteNat f (<span class="dt">S</span> n) <span class="ot">=</span> promoteNat (f <span class="op">.</span> <span class="dt">SS</span>) n</span></code></pre></div>
+<p>I can use that <code>SNat n</code>, for any value of <code>n</code>, to ask the user for the vector:</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Read Vect of a from stdin</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ot">readVec ::</span> <span class="dt">Read</span> a <span class="ot">=&gt;</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> (<span class="dt">Vect</span> n a)</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>readVec <span class="dt">SZ</span> <span class="ot">=</span> <span class="fu">pure</span> <span class="dt">VNil</span></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>readVec (<span class="dt">SS</span> n) <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>    vecElem <span class="ot">&lt;-</span> <span class="fu">read</span> <span class="op">&lt;$&gt;</span> <span class="fu">getLine</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>    (vecElem <span class="op">:#</span>) <span class="op">&lt;$&gt;</span> readVec n</span></code></pre></div>
+<p>So far I have the vector, then I can ask for <code>m :: Nat</code> in a similar way as before. Once I have both <code>n :: Nat</code> and <code>m :: Nat</code>, I need to verify that <code>m &lt;= n</code> by constructing <code>LTE m n</code>:</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Run the function if we can prove that n &lt; m</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="ot">promoteLTE ::</span> (<span class="dt">LTE</span> n m <span class="ot">-&gt;</span> k) <span class="ot">-&gt;</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">SNat</span> m <span class="ot">-&gt;</span> <span class="dt">Maybe</span> k</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>promoteLTE f <span class="dt">SZ</span> _ <span class="ot">=</span> <span class="dt">Just</span> <span class="op">$</span> f <span class="dt">LTEZero</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>promoteLTE _ (<span class="dt">SS</span> _) <span class="dt">SZ</span> <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>promoteLTE f (<span class="dt">SS</span> n) (<span class="dt">SS</span> m) <span class="ot">=</span> promoteLTE (f <span class="op">.</span> <span class="dt">LTESucc</span>) n m</span></code></pre></div>
+<p>All I need to do now is put these pieces in the right order:</p>
+<p><strong>Obtain a <code>SNat n</code> from the user</strong></p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ot">step0 ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>step0 <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStr</span> <span class="st">&quot;Vector length: \n ?&quot;</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    mVecLen <span class="ot">&lt;-</span> intToNat <span class="op">.</span> (<span class="fu">read</span><span class="ot"> ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span>) <span class="op">&lt;$&gt;</span> <span class="fu">getLine</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">case</span> promoteNat step1 <span class="op">&lt;$&gt;</span> mVecLen <span class="kw">of</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Nothing</span> <span class="ot">-&gt;</span> <span class="fu">putStrLn</span> <span class="st">&quot;Failed to obtain Nat&quot;</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Just</span> action <span class="ot">-&gt;</span> action</span></code></pre></div>
+<p><strong>Obtain a <code>Vect n Integer</code> and <code>SNat m</code></strong></p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Having obtained a valid natural n, read n integers from `Stdin`</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- Then ask for how many elements to take</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="ot">step1 ::</span> <span class="kw">forall</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) <span class="op">.</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>step1 n <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="st">&quot;Enter elemnts&quot;</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>    vec <span class="ot">&lt;-</span> readVec<span class="ot"> n ::</span> <span class="dt">IO</span> (<span class="dt">Vect</span> n <span class="dt">Integer</span>)</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Input: &quot;</span> <span class="op">++</span> <span class="fu">show</span> vec</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStr</span> <span class="st">&quot;Number to Take: \n ?&quot;</span></span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>    mTake <span class="ot">&lt;-</span> intToNat <span class="op">.</span> (<span class="fu">read</span><span class="ot"> ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span>) <span class="op">&lt;$&gt;</span> <span class="fu">getLine</span></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">case</span> promoteNat (step2 vec n) <span class="op">&lt;$&gt;</span> mTake <span class="kw">of</span></span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Nothing</span> <span class="ot">-&gt;</span> <span class="fu">putStrLn</span> <span class="st">&quot;Failed to obtain Nat&quot;</span></span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Just</span> action <span class="ot">-&gt;</span> action</span></code></pre></div>
+<p><strong>Check if <code>m &lt;= n</code></strong></p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- If the elements to take n are a valid natural then</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- Make sure it is less than then length of the vector</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="ot">step2 ::</span> <span class="dt">Vect</span> k <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">SNat</span> k <span class="ot">-&gt;</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>step2 vec k n <span class="ot">=</span> <span class="kw">case</span> promoteLTE (step3 vec) n k <span class="kw">of</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nothing</span> <span class="ot">-&gt;</span> <span class="fu">putStrLn</span> <span class="st">&quot;Not LTE&quot;</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Just</span> action <span class="ot">-&gt;</span> action</span></code></pre></div>
+<p><strong>Take the <code>m</code> elements</strong></p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- If we take less than or equal elements, proceed to take.</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- No checks needed.</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="ot">step3 ::</span> <span class="dt">Vect</span> m <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">LTE</span> n m <span class="ot">-&gt;</span> <span class="dt">IO</span> ()</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>step3 vec lte <span class="ot">=</span> <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Taken: &quot;</span> <span class="op">++</span> <span class="fu">show</span> (vTake lte vec)</span></code></pre></div>
+<p>And that's it.</p>
+<h1 id="conclusion">Conclusion</h1>
+<p>Using the type safe function <code>vTake</code> required to carefully check that all preconditions were met without using <code>undefined</code>. So, I could say the code is safer.</p>
+<p>On the other hand, the resulting code is more "complex" and I've transferred some of the risk to the type level functions. Those could be wrong in some cases and would require testing.</p>
+<p>Finally, this code forbids taking more than what you have; and that could be a very important constraint to enforce in some applications.</p>
+<h1 id="references">References</h1>
+<p>Some of the techniques used in this document come from "Dependent Type Programming with Singletons" by R. A. Eisenberg and S. Weirich.</p>
+<p>Idris' base library source code was also used for reference.</p>
+<p>Haskell's singleton libraray's source code was also consulted.</p>
+<h1 id="appendix">Appendix</h1>
+<p>This is the rest of the code that drives the previous post, together with some functions that I wrote and ened up not using.</p>
+<div class="sourceCode" id="cb40"><pre class="sourceCode haskell literate"><code class="sourceCode haskell"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ot">main ::</span> <span class="dt">IO</span> ()</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>main <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Example: &quot;</span> <span class="op">++</span> <span class="fu">show</span> example</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Take one, drop one: &quot;</span> <span class="op">++</span> <span class="fu">show</span> skippedExample</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Dropped: &quot;</span> <span class="op">++</span> <span class="fu">show</span> droppedExample</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Sliced: &quot;</span> <span class="op">++</span> <span class="fu">show</span> slicedExample1</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Eliminated: &quot;</span> <span class="op">++</span> <span class="fu">show</span> elimintadExample</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Duplicated: &quot;</span> <span class="op">++</span> <span class="fu">show</span> duplicatedExample</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;First Half: &quot;</span> <span class="op">++</span> <span class="fu">show</span> firstHalfExample</span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Second Half: &quot;</span> <span class="op">++</span> <span class="fu">show</span> secondHalfExample</span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Halves: &quot;</span> <span class="op">++</span> <span class="fu">show</span> halvedExample</span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">putStrLn</span> <span class="op">$</span> <span class="st">&quot;Taked: &quot;</span> <span class="op">++</span> <span class="fu">show</span> takedExample</span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a>    step0</span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Show</span> a <span class="ot">=&gt;</span> <span class="dt">Show</span> (<span class="dt">Vect</span> n a) <span class="kw">where</span></span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">show</span> <span class="dt">VNil</span> <span class="ot">=</span> <span class="st">&quot;VNil&quot;</span></span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">show</span> (x <span class="op">:#</span> xs) <span class="ot">=</span> <span class="fu">show</span> x <span class="op">++</span> <span class="st">&quot; :# &quot;</span> <span class="op">++</span> <span class="fu">show</span> xs</span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-20"><a href="#cb40-20" aria-hidden="true" tabindex="-1"></a><span class="ot">printVec ::</span> <span class="dt">Show</span> a <span class="ot">=&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">String</span></span>
+<span id="cb40-21"><a href="#cb40-21" aria-hidden="true" tabindex="-1"></a>printVec v <span class="ot">=</span> <span class="st">&quot;{&quot;</span> <span class="op">++</span> printRec v <span class="op">++</span> <span class="st">&quot;}&quot;</span></span>
+<span id="cb40-22"><a href="#cb40-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-23"><a href="#cb40-23" aria-hidden="true" tabindex="-1"></a><span class="ot">printRec ::</span> <span class="dt">Show</span> a <span class="ot">=&gt;</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">String</span></span>
+<span id="cb40-24"><a href="#cb40-24" aria-hidden="true" tabindex="-1"></a>printRec <span class="dt">VNil</span> <span class="ot">=</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb40-25"><a href="#cb40-25" aria-hidden="true" tabindex="-1"></a>printRec (x <span class="op">:#</span> <span class="dt">VNil</span>) <span class="ot">=</span> <span class="fu">show</span> x</span>
+<span id="cb40-26"><a href="#cb40-26" aria-hidden="true" tabindex="-1"></a>printRec (x <span class="op">:#</span> xs<span class="op">@</span>(_ <span class="op">:#</span> _)) <span class="ot">=</span> <span class="fu">show</span> x <span class="op">++</span> <span class="st">&quot; ; &quot;</span> <span class="op">++</span> printRec xs</span>
+<span id="cb40-27"><a href="#cb40-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-28"><a href="#cb40-28" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Show</span> (<span class="dt">Slice</span> <span class="dt">&#39;Z</span> <span class="dt">&#39;Z</span> <span class="dt">&#39;VNil</span>) <span class="kw">where</span></span>
+<span id="cb40-29"><a href="#cb40-29" aria-hidden="true" tabindex="-1"></a>    <span class="fu">show</span> <span class="dt">SliceNil</span> <span class="ot">=</span> <span class="st">&quot;SliceNil&quot;</span></span>
+<span id="cb40-30"><a href="#cb40-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-31"><a href="#cb40-31" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Show</span> (<span class="dt">Slice</span> t i is) <span class="ot">=&gt;</span> <span class="dt">Show</span> (<span class="dt">Slice</span> ( <span class="dt">&#39;S</span> t ) i ( <span class="dt">&#39;False</span> &#39;<span class="op">:#</span> is) ) <span class="kw">where</span></span>
+<span id="cb40-32"><a href="#cb40-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">show</span> (<span class="dt">SliceRem</span> is) <span class="ot">=</span> <span class="st">&quot;SliceRem &quot;</span> <span class="op">++</span> <span class="fu">show</span> is</span>
+<span id="cb40-33"><a href="#cb40-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-34"><a href="#cb40-34" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> <span class="dt">Show</span> (<span class="dt">Slice</span> t i is) <span class="ot">=&gt;</span> <span class="dt">Show</span> (<span class="dt">Slice</span> ( <span class="dt">&#39;S</span> t ) (<span class="dt">&#39;S</span> i) ( <span class="dt">&#39;True</span> &#39;<span class="op">:#</span> is) ) <span class="kw">where</span></span>
+<span id="cb40-35"><a href="#cb40-35" aria-hidden="true" tabindex="-1"></a>    <span class="fu">show</span> (<span class="dt">SliceInc</span> is) <span class="ot">=</span> <span class="st">&quot;SliceInc &quot;</span> <span class="op">++</span> <span class="fu">show</span> is</span>
+<span id="cb40-36"><a href="#cb40-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-37"><a href="#cb40-37" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Less than over Nat</span></span>
+<span id="cb40-38"><a href="#cb40-38" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">LTB</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb40-39"><a href="#cb40-39" aria-hidden="true" tabindex="-1"></a>    <span class="dt">LTB</span> n m <span class="ot">=</span> <span class="dt">LTEB</span> (<span class="dt">&#39;S</span> n) m</span>
+<span id="cb40-40"><a href="#cb40-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-41"><a href="#cb40-41" aria-hidden="true" tabindex="-1"></a><span class="co">-- | Greater than equal over Nat</span></span>
+<span id="cb40-42"><a href="#cb40-42" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> <span class="kw">family</span> <span class="dt">GTEB</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="ot"> ::</span> <span class="dt">Bool</span> <span class="kw">where</span></span>
+<span id="cb40-43"><a href="#cb40-43" aria-hidden="true" tabindex="-1"></a>    <span class="dt">GTEB</span> <span class="dt">&#39;Z</span> m <span class="ot">=</span> <span class="dt">&#39;False</span></span>
+<span id="cb40-44"><a href="#cb40-44" aria-hidden="true" tabindex="-1"></a>    <span class="dt">GTEB</span> ( <span class="dt">&#39;S</span> n ) <span class="dt">&#39;Z</span> <span class="ot">=</span> <span class="dt">&#39;True</span></span>
+<span id="cb40-45"><a href="#cb40-45" aria-hidden="true" tabindex="-1"></a>    <span class="dt">GTEB</span> ( <span class="dt">&#39;S</span> n ) ( <span class="dt">&#39;S</span> m ) <span class="ot">=</span> <span class="dt">GTEB</span> n m</span>
+<span id="cb40-46"><a href="#cb40-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-47"><a href="#cb40-47" aria-hidden="true" tabindex="-1"></a><span class="ot">promoteVec ::</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> [a] <span class="ot">-&gt;</span> <span class="dt">Maybe</span> (<span class="dt">Vect</span> n a)</span>
+<span id="cb40-48"><a href="#cb40-48" aria-hidden="true" tabindex="-1"></a>promoteVec <span class="dt">SZ</span> [] <span class="ot">=</span> <span class="dt">Just</span> <span class="dt">VNil</span></span>
+<span id="cb40-49"><a href="#cb40-49" aria-hidden="true" tabindex="-1"></a>promoteVec <span class="dt">SZ</span> (_ <span class="op">:</span> _) <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb40-50"><a href="#cb40-50" aria-hidden="true" tabindex="-1"></a>promoteVec (<span class="dt">SS</span> _) [] <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb40-51"><a href="#cb40-51" aria-hidden="true" tabindex="-1"></a>promoteVec (<span class="dt">SS</span> n) (x <span class="op">:</span> xs) <span class="ot">=</span> (x <span class="op">:#</span>) <span class="op">&lt;$&gt;</span> promoteVec n xs</span>
+<span id="cb40-52"><a href="#cb40-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-53"><a href="#cb40-53" aria-hidden="true" tabindex="-1"></a><span class="ot">demoteSNat ::</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">Nat</span></span>
+<span id="cb40-54"><a href="#cb40-54" aria-hidden="true" tabindex="-1"></a>demoteSNat <span class="dt">SZ</span> <span class="ot">=</span> <span class="dt">Z</span></span>
+<span id="cb40-55"><a href="#cb40-55" aria-hidden="true" tabindex="-1"></a>demoteSNat (<span class="dt">SS</span> n) <span class="ot">=</span> <span class="dt">S</span> (demoteSNat n)</span>
+<span id="cb40-56"><a href="#cb40-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-57"><a href="#cb40-57" aria-hidden="true" tabindex="-1"></a><span class="ot">natToInt ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span></span>
+<span id="cb40-58"><a href="#cb40-58" aria-hidden="true" tabindex="-1"></a>natToInt <span class="dt">Z</span> <span class="ot">=</span> <span class="dv">0</span></span>
+<span id="cb40-59"><a href="#cb40-59" aria-hidden="true" tabindex="-1"></a>natToInt (<span class="dt">S</span> n) <span class="ot">=</span> <span class="dv">1</span> <span class="op">+</span> natToInt n</span>
+<span id="cb40-60"><a href="#cb40-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-61"><a href="#cb40-61" aria-hidden="true" tabindex="-1"></a><span class="ot">promoteLTE1 ::</span> <span class="kw">forall</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) k <span class="op">.</span> (<span class="kw">forall</span> (<span class="ot">m ::</span> <span class="dt">Nat</span>) <span class="op">.</span> <span class="dt">LTE</span> n m <span class="ot">-&gt;</span> k) <span class="ot">-&gt;</span> <span class="dt">SNat</span> n <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> k</span>
+<span id="cb40-62"><a href="#cb40-62" aria-hidden="true" tabindex="-1"></a>promoteLTE1 f n m</span>
+<span id="cb40-63"><a href="#cb40-63" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> m <span class="op">&lt;</span> <span class="dv">0</span> <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb40-64"><a href="#cb40-64" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> m <span class="op">==</span> <span class="dv">0</span> <span class="ot">=</span> <span class="kw">case</span> n <span class="kw">of</span></span>
+<span id="cb40-65"><a href="#cb40-65" aria-hidden="true" tabindex="-1"></a>        <span class="dt">SZ</span> <span class="ot">-&gt;</span> <span class="dt">Just</span> <span class="op">$</span> f <span class="dt">LTEZero</span></span>
+<span id="cb40-66"><a href="#cb40-66" aria-hidden="true" tabindex="-1"></a>        _ <span class="ot">-&gt;</span> <span class="dt">Nothing</span></span>
+<span id="cb40-67"><a href="#cb40-67" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="fu">otherwise</span> <span class="ot">=</span> <span class="kw">case</span> n <span class="kw">of</span></span>
+<span id="cb40-68"><a href="#cb40-68" aria-hidden="true" tabindex="-1"></a>        <span class="dt">SZ</span> <span class="ot">-&gt;</span> <span class="dt">Just</span> <span class="op">$</span> f <span class="dt">LTEZero</span></span>
+<span id="cb40-69"><a href="#cb40-69" aria-hidden="true" tabindex="-1"></a>        (<span class="dt">SS</span> n&#39;) <span class="ot">-&gt;</span> promoteLTE1 (f <span class="op">.</span> <span class="dt">LTESucc</span>) n&#39; (m <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb40-70"><a href="#cb40-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-71"><a href="#cb40-71" aria-hidden="true" tabindex="-1"></a><span class="ot">promoteLTE2 ::</span> <span class="kw">forall</span> k <span class="op">.</span> (<span class="kw">forall</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">m ::</span> <span class="dt">Nat</span>) <span class="op">.</span> <span class="dt">LTE</span> n m <span class="ot">-&gt;</span> k) <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Integer</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> k</span>
+<span id="cb40-72"><a href="#cb40-72" aria-hidden="true" tabindex="-1"></a>promoteLTE2 f n m</span>
+<span id="cb40-73"><a href="#cb40-73" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> m <span class="op">&lt;</span> <span class="dv">0</span> <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb40-74"><a href="#cb40-74" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> n <span class="op">&gt;</span> m <span class="ot">=</span> <span class="dt">Nothing</span></span>
+<span id="cb40-75"><a href="#cb40-75" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> n <span class="op">==</span> <span class="dv">0</span> <span class="ot">=</span> <span class="dt">Just</span> <span class="op">$</span> f <span class="dt">LTEZero</span></span>
+<span id="cb40-76"><a href="#cb40-76" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="fu">otherwise</span> <span class="ot">=</span> promoteLTE2 (f <span class="op">.</span> <span class="dt">LTESucc</span>) (n <span class="op">-</span> <span class="dv">1</span>) m</span></code></pre></div>
+</article>
+
+	<footer>Copyright  Aner Lucero</footer>
+</body>
+</html>
