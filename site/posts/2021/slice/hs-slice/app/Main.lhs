@@ -68,7 +68,7 @@ long at runtime.
 
 \begin{code}
 safeSplitInHalves :: Int -> [a] -> Maybe ([a], [a])
-safeSplitInHalves limit xs = splitAt <$> fmap (`div` 2) (safeLength 0 xs) <*> pure xs
+safeSplitInHalves limit xs = (`splitAt` xs) . (`div` 2) <$> safeLength 0 xs
 	where
 	safeLength acc [] = Just acc
 	safeLength acc (_ : ys) =
