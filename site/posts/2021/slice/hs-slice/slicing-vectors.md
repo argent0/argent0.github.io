@@ -302,11 +302,11 @@ data LTE :: Nat -> Nat -> Type where
 ```
 
 The `LTE n m` type, indexed by two naturals, can only be constructed if
-`n <= m`. This is known way to represent it. It could be read as:
+`n <= m`. This is a known way to represent it. It could be read as:
 
 -   Use `LTEZero` to prove that `0 <= m`
--   To construct a proof that `S n_ <= S m`, provide a proof that
-    `n <= m`.
+-   To construct a proof that `S n_ <= S m`, use `LTESucc` and provide a
+    proof that `n <= m`.
 
 With this representation there is only one way to proof that `n <= m`.
 This means that `LTE n m` is a singleton hence:
@@ -380,7 +380,7 @@ instance Singleton (Slice t i is) => Singleton (Slice ( 'S t ) ('S i) ( 'True ':
 
 With these definitions `vSlice` is easy to write. It takes a
 `Slice t i is` and a `Vect t a` as inputs and returns a `Vect i a` where
-the i-th element of `Vect t a` is present in `Vect i a` if the i-th
+the k-th element of `Vect t a` is present in `Vect i a` if the k-th
 element of `is` is `True`.
 
 ``` {.haskell .literate}
@@ -523,6 +523,7 @@ This translates into five new type level functions, that accomplish the
 goal of computing the type of the slice that selects the second half.
 
 ``` {.haskell .literate}
+-- forall (n :: Nat) . NatHalf n :+: NatHalfC n = n
 type family NatHalfC (n :: Nat) :: Nat where
     NatHalfC 'Z = 'Z
     NatHalfC ('S 'Z) = 'S 'Z
@@ -574,16 +575,14 @@ halvedExample = vHalve (reify Proxy) (reify Proxy) example
 ```
 
 Finally a type safe solution. I still need those `(reify Proxy)`
-arguments.
+arguments, which is not ideal.
 
 # How does this work in the "real" world?
 
 So far all examples have been based on the `example` vector which is
 known at compile time because it is defined in the code. In that regard,
 the original `splitInHalves` function can also split any list you can
-type.
-
-The type safe functions, to this point, have only helped the type
+type. The type safe functions, to this point, have only helped the type
 checker to find errors on the values I've provided at compile time.
 
 To interact with "the real world", I would need to read vectors from it.
@@ -601,8 +600,8 @@ program:
 4.  Ensure that `m <= n`
 5.  Take `m` elements from `v` to form new vector.
 
-I started with the simple case of converting an `Integer` to a `Nat`.
-Integers cacan be easly read from `stdin`:
+I started with the simple case of converting an `Integer` to a `Nat`
+since Integers can be easly read from `stdin`:
 
 ``` {.haskell .literate}
 intToNat :: Integer -> Maybe Nat
@@ -645,7 +644,7 @@ as before. Once I have both `n :: Nat` and `m :: Nat`, I need to verify
 that `m <= n` by constructing `LTE m n`:
 
 ``` {.haskell .literate}
--- | Run the function if we can prove that n < m
+-- | Run the function if we can prove that n <= m
 promoteLTE :: (LTE n m -> k) -> SNat n -> SNat m -> Maybe k
 promoteLTE f SZ _ = Just $ f LTEZero
 promoteLTE _ (SS _) SZ = Nothing
@@ -809,7 +808,7 @@ promoteLTE1 f n m
 
 promoteLTE2 :: forall k . (forall (n :: Nat) (m :: Nat) . LTE n m -> k) -> Integer -> Integer -> Maybe k
 promoteLTE2 f n m
-    | n < 0 && m < 0 = Nothing
+    | n < 0 || m < 0 = Nothing
     | n > m = Nothing
     | n == 0 = Just $ f LTEZero
     | otherwise = promoteLTE2 (f . LTESucc) (n - 1) m
